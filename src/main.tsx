@@ -1,5 +1,21 @@
+import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import '@/index.module.scss'
-import App from '@/App.tsx'
+import { CssBaseline, ThemeProvider } from '@mui/material'
 
-createRoot(document.getElementById('root')!).render(<App />)
+import App from '@/App'
+import ErrorBoundary from '@/components/ErrorBoundary'
+import GlobalSnackbar from '@/components/GlobalSnackbar'
+import '@/styles/global.scss'
+import { theme } from '@/theme'
+
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <ErrorBoundary>
+        <App />
+        <GlobalSnackbar />
+      </ErrorBoundary>
+    </ThemeProvider>
+  </StrictMode>,
+)

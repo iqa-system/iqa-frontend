@@ -1,11 +1,9 @@
-import '@/App.module.scss'
+import { RouterProvider } from 'react-router'
+
+import { router } from '@/routes'
 
 function App() {
-  return (
-    <>
-      <div>123</div>
-    </>
-  )
+  return <RouterProvider router={router} />
 }
 
 export default App
