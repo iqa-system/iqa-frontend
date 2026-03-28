@@ -1,28 +1,44 @@
-import axios, { type AxiosInstance } from 'axios'
+import axios, { type AxiosError, type AxiosInstance } from 'axios'
 
-export const baseURL: string = 'http://localhost:8080'
+import { useAuthStore } from '@/stores/auth-store'
+import { clearAuthSession } from '@/utils/session'
+
+export const baseURL = 'http://localhost:8080'
 
 const apiRequest: AxiosInstance = axios.create({
   baseURL,
-  timeout: 10000
+  timeout: 10000,
 })
 
-// 请求拦截器
-apiRequest.interceptors.request.use(config => {
-  // 设置token...
+apiRequest.interceptors.request.use(
+  (config) => {
+    const { accessToken } = useAuthStore.getState()
+    const hasExplicitAuthorizationHeader =
+      typeof config.headers?.Authorization !== 'undefined'
 
-  console.log('@@请求地址: ', config.url, '; 请求信息: ', config)
-  return config
-}, error => {
-  return error
-})
+    if (accessToken && !hasExplicitAuthorizationHeader) {
+      config.headers.Authorization = accessToken
+    }
 
-// 响应拦截器
-apiRequest.interceptors.response.use(response => {
-  return response
-}, error => {
-  console.warn('请求失败, url: ', error.config?.url, '; 详细信息: ', error)
-  return Promise.reject(error)
-})
+    return config
+  },
+  (error) => Promise.reject(error)
+)
+
+apiRequest.interceptors.response.use(
+  (response) => response,
+  (error: AxiosError) => {
+    const status = error.response?.status
+    const requestUrl = error.config?.url ?? ''
+    const isAuthApi = requestUrl.startsWith('/auth/')
+    const hasAccessToken = Boolean(useAuthStore.getState().accessToken)
+
+    if (status === 401 && hasAccessToken && !isAuthApi) {
+      clearAuthSession('登录状态已失效, 请重新登录')
+    }
+
+    return Promise.reject(error)
+  }
+)
 
 export default apiRequest

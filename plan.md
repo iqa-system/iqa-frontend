@@ -1,369 +1,150 @@
-# IQA 图像质量评估系统前端实施计划
+# IQA 前端多页面系统实施方案
 
-## 问题概述
+## Summary
+- 基于 React Router 数据模式实现 4 个核心路由: `/auth`, `/assess`, `/history`, `/profile`, 并增加根路由重定向, 受保护布局路由和路由懒加载.
+- 登录后采用仅桌面端的左侧导航 + 顶部用户区应用框架. 左侧菜单包含 `图像评估`, `历史记录`, `个人信息`, 顶部提供当前用户名和退出登录入口.
+- 直接打开前端任意页面时, 先检查 `localStorage` 中是否存在认证信息. 若存在, 则读取本地 token 调用 `/auth/refresh` 尝试自动登录, 成功后保存新的 token 并跳转主页 `/assess`; 失败则清空登录态并进入 `/auth`.
+- 全局接入 MUI `zhCN` 地域设置. 所有页面文案, 提示文案, 表单校验文案和代码注释统一使用中文, 标点使用英文, TypeScript 代码保持无分号风格.
+- 注册页与登录页合并为一个认证页面, 使用 Tab 切换. 注册页增加确认密码校验. 注册成功仅提示成功并切回登录表单, 不自动登录. 登录成功后跳转到图像质量评估页.
+- 评估页同时支持单张评估和批量评估. 批量评估按后端 `POST multipart + text/event-stream` 约定, 用 `fetch + ReadableStream` 手动解析 SSE 事件. 进度优先使用服务端返回的 `progress`, 缺失时再用 `completed / total * 100` 回退.
+- v1 历史记录页只做服务端分页, 不做关键词搜索和条件筛选. 页面统一覆盖 `loading`, `empty`, `error` 三类状态.
 
-需要为图像质量评估系统构建一个完整的前端应用，包含用户认证、图像评估、历史记录查询和个人信息管理四大功能模块。项目使用 React 19 + Material UI v7 + TypeScript + React Router 数据模式路由的技术栈。
+## Key Changes
+### 路由与应用骨架
+- 在 `src/route/index.tsx` 定义数据路由数组, 拆分为认证路由和受保护布局路由:
+  - 未登录访问受保护页面时重定向到 `/auth`
+  - 已登录访问 `/auth` 时重定向到 `/assess`
+  - `/` 默认跳转到 `/assess`
+- 应用启动阶段使用根路由 `loader` 或等效初始化逻辑完成自动登录判断:
+  - 从 `localStorage` 读取 `accessToken`, `expiresIn`, `username`, `userId` 等认证信息
+  - 无本地认证信息时, 未登录访问受保护页面则重定向 `/auth`
+  - 有本地认证信息时, 先调用 `/auth/refresh`
+  - 刷新成功后保存新的 token 数据, 再调用 `/user/info` 同步最新用户信息
+  - 刷新失败后清空登录态并重定向 `/auth`
+- 进入受保护页面时默认以“自动登录已完成”为前提, 不再把旧 token 直接视为有效登录态.
+- 所有页面路由使用 React Router `lazy` 懒加载, 外层提供统一加载占位.
+- 将 `src/App.tsx` 改为应用级 Provider 容器, 负责挂载 `ThemeProvider`, `CssBaseline`, 全局 Snackbar 容器和 `RouterProvider`.
+- 将 `src/main.tsx` 保持为极简入口, 只渲染 `App`.
+- 新增一个仅面向桌面端的通用应用布局组件, 左侧为固定导航, 主内容区承载子路由页面.
+- 启用 `keepalive-for-react` 缓存 `/assess` 与 `/history` 页面, 保留评估结果, 上传状态和分页位置. `/auth` 与 `/profile` 不缓存, 避免保留认证和密码编辑输入.
 
-## 核心要求
+### 状态管理与类型
+- 新增 Zustand 登录态 store, 持久化保存 `accessToken`, `expiresIn`, `username`, `userId` 以及 token 校验状态.
+- 新增全局消息 store 或轻量 UI store, 统一驱动 MUI Snackbar, 避免各页面重复管理提示状态.
+- 新增统一类型定义:
+  - `ApiResponse<T>`
+  - `AuthTokenResponse`
+  - `PredictResult`
+  - `AssessRecord`
+  - `PageAssessRecord`
+  - `UserInfo`
+  - `BatchAssessEvent` 及其 `start | progress | result | completed | error` 事件体
+- 为场景和失真字典补充类型安全访问函数, 统一处理 `number`, `string`, 数字字符串三种编码输入.
 
-1. **国际化**: 所有组件和文本使用中文(zh_CN), MUI 使用内置的 zhCN locale
-2. **代码规范**: 详尽的中文注释，英文标点符号
-3. **技术选型**: React Router 数据模式路由(createBrowserRouter + RouterProvider), Material UI 组件库
-4. **后端集成**: 基于 OpenAPI 规范的 SpringBoot 接口
-5. **认证持久化**: Token 和用户信息持久化到 localStorage, 实现自动登录和 token 刷新
-6. **表单验证**: 手动验证表单, 无需额外验证库
-7. **日期格式化**: 手动格式化日期, 无需额外日期库
-8. **适配范围**: 暂不考虑移动端响应式适配
+### API 与基础设施
+- 保留并扩展 `src/utils/api-request.ts`:
+  - 请求拦截器自动注入 `Authorization: ${accessToken}`
+  - 表单接口使用 `URLSearchParams`
+  - 上传接口使用 `FormData`
+  - 统一把后端错误或网络错误转换为中文提示
+  - 遇到 401 时清理登录态并跳回 `/auth`
+- 按职责拆分服务层:
+  - `auth` 服务: 注册, 登录, 刷新 token
+  - `assess` 服务: 单张评估, 批量评估流解析, 历史分页查询
+  - `user` 服务: 获取用户信息, 更新用户信息
+- 批量评估服务输出回调式或订阅式接口, 页面层只接收解析后的事件对象, 不直接处理底层流文本.
+- 批量评估进度采用固定规则:
+  - 优先使用服务端返回的 `progress`
+  - 缺失时回退为 `Math.round(completed / total * 100)`
+- 图片预览工具统一处理历史记录 `base64` 字段:
+  - 如果后端返回原始 Base64, 前端补齐 `data:image/*;base64,`
+  - 如果已经带前缀, 直接使用
 
-## 技术架构
+### 页面实现
+- 认证页:
+  - 单页双 Tab, 登录表单和注册表单均包含必填校验
+  - 注册表单增加 `确认密码`, 前端校验两次密码一致
+  - 登录成功: 保存登录态, Snackbar 提示, 跳转 `/assess`
+  - 注册成功: Snackbar 提示, 自动切回登录 Tab, 可保留用户名便于继续登录
+  - 页面需覆盖提交中和错误提示状态
+- 图像质量评估页:
+  - 页面内用 Tab 或分段卡片区分 `单张评估` 和 `批量评估`
+  - 单张评估展示上传区, 本地图预览, 结果卡片, 包含质量分数, 场景, 失真
+  - 批量评估展示多文件选择, 线性进度条, 当前完成数, 流式追加结果列表
+  - `completed` 事件触发最终成功提示, `error` 事件触发失败提示并终止当前任务状态
+  - 页面需覆盖 `loading`, `empty`, `error` 状态. 其中空态用于首次未上传或暂无批量结果时的占位展示
+- 历史记录页:
+  - 使用 MUI `Table + TablePagination`, 不引入额外表格依赖
+  - 列包含缩略图, 文件名, 分数, 场景, 失真, 评估时间
+  - 仅支持服务端分页, 不提供关键词搜索和条件筛选 UI
+  - 支持分页, 修改每页条数, 翻页
+  - 点击缩略图打开 MUI `Dialog` 放大预览
+  - 页面需覆盖 `loading`, `empty`, `error` 状态
+- 个人信息页:
+  - 首屏加载当前用户信息并展示 `ID`, `用户名`, `注册时间`
+  - 编辑表单支持修改用户名和密码
+  - 密码修改需填写 `旧密码`, `新密码`, `确认新密码`
+  - 前端校验 `新密码 === 确认新密码`
+  - 更新成功后刷新用户信息并同步顶部用户名
+  - 修改密码成功后保持当前登录态, 仅清空密码输入框并提示成功
+  - 页面需覆盖 `loading` 和 `error` 状态
 
-### 技术栈
-- React 19.2.0 + TypeScript 5.9.3
-- Material UI 7.3.9 + MUI Icons Material (图标库)
-- React Router 7.13.1 (数据模式路由: createBrowserRouter + RouterProvider)
-- Zustand 5.0.12 (状态管理 + localStorage 持久化)
-- Axios 1.13.6 (HTTP 客户端)
-- Vite 7.3.1 (构建工具)
+## Public Interfaces
+- 路由结构固定为:
+  - `/auth`
+  - `/assess`
+  - `/history`
+  - `/profile`
+- 批量评估前端内部接口固定为“流事件驱动”模型, 页面只消费解析后的结构化事件, 不直接耦合原始 SSE 字符串.
+- 新增统一格式化函数供评估页和历史页复用:
+  - `formatSceneLabel`
+  - `formatDistortionLabel`
+  - `formatDateTime`
+  - `normalizeImageSrc`
 
-### 目录结构规划
-```
-src/
-├── components/        # 公共组件
-│   ├── Layout/       # 布局组件
-│   ├── ProtectedRoute.tsx  # 路由守卫
-│   ├── GlobalSnackbar.tsx  # 全局消息提示
-│   └── ErrorBoundary.tsx   # 错误边界组件
-├── pages/            # 页面组件
-│   ├── Auth/         # 认证相关页面
-│   │   ├── Login.tsx
-│   │   └── Register.tsx
-│   ├── Assessment/   # 评估页面
-│   │   └── Assessment.tsx
-│   ├── History/      # 历史记录页面
-│   │   └── History.tsx
-│   └── Profile/      # 用户信息页面
-│       └── Profile.tsx
-├── services/         # API 服务层
-│   ├── auth.ts       # 认证接口
-│   ├── assessment.ts # 评估接口
-│   └── user.ts       # 用户接口
-├── stores/           # Zustand 状态管理
-│   ├── authStore.ts  # 认证状态
-│   └── snackbarStore.ts  # 消息提示状态
-├── types/            # TypeScript 类型定义
-│   └── api.ts        # API 响应类型
-├── routes/           # 路由配置
-│   └── index.tsx     # 路由数组定义
-└── utils/            # 工具函数
-    ├── api-request.ts # (已存在) Axios 封装
-    └── constants.ts   # (已存在) 场景和失真类型映射
-```
+## Test Plan
+- 认证流程:
+  - 注册成功后显示中文提示并切回登录表单
+  - 注册确认密码不一致时阻止提交
+  - 登录成功后跳转 `/assess`
+  - 直接打开任意前端路由时, 若本地存在认证信息, 先调用 `/auth/refresh` 尝试自动登录
+  - `/auth/refresh` 成功后保存新 token 并跳转 `/assess`
+  - `/auth/refresh` 失败后清空本地登录态, 未登录访问 `/assess`, `/history`, `/profile` 时被重定向到 `/auth`
+  - 已登录访问 `/auth` 时被重定向到 `/assess`
+- 路由与缓存:
+  - 路由按懒加载加载页面
+  - 从 `/history` 切到其他受保护页再返回时保留分页位置
+  - 从 `/assess` 切到其他受保护页再返回时保留已展示的评估结果
+  - `/profile` 不保留未提交的密码输入
+- 单张评估:
+  - 未选择文件时阻止提交并提示
+  - 成功返回后正确展示分数, 场景, 失真
+  - 失败时显示中文错误提示
+- 批量评估:
+  - 进度条优先展示服务端 `progress`, 缺失时按 `completed/total` 回退
+  - `result` 事件逐条追加结果
+  - `completed` 后展示完成提示并保留结果列表
+  - `error` 后展示失败提示并停止 loading
+- 历史记录:
+  - 首次进入加载第 1 页
+  - 列表为空时展示中文空状态占位
+  - 切换每页条数后重置到第 1 页并重新请求
+  - 翻页请求对应分页参数
+  - 不显示搜索和筛选控件
+  - 缩略图可打开预览弹窗
+- 个人信息:
+  - 用户信息初始展示正确
+  - 仅改用户名可提交
+  - 修改密码时必须填写旧密码和确认密码
+  - 确认密码不一致时阻止提交
+  - 更新成功后页面信息同步刷新
+- 工程验证:
+  - `pnpm lint`
+  - `pnpm build`
 
-## 实施待办事项
-
-### 阶段一: 基础设施搭建
-
-**setup-types** - 创建 TypeScript 类型定义
-- 定义 API 响应的所有类型接口
-- 包括: 用户信息、认证响应、评估结果、历史记录、分页响应等
-- 基于 OpenAPI 规范创建完整的类型系统
-
-**setup-stores** - 创建状态管理
-- authStore: 管理用户登录状态、token、用户信息、全局加载状态
-  - 使用 persist 中间件持久化到 localStorage
-  - 提供 login, logout, setToken, setUser, refreshToken 等方法
-- snackbarStore: 管理全局消息提示的显示状态和内容
-  - 提供 showSuccess, showError, showWarning, showInfo 等方法
-- 使用 Zustand 实现轻量级状态管理
-
-**setup-services** - 创建 API 服务层
-- auth.ts: 登录、注册、刷新 token 接口
-- assessment.ts: 单张/批量图片评估、历史记录查询接口
-- user.ts: 获取和更新用户信息接口
-- 完善 api-request.ts:
-  - 添加请求拦截器: 自动从 authStore 读取 token 并添加到 Authorization 头
-  - 添加响应拦截器: 401 错误时清除 authStore 并跳转登录页
-  - 统一错误处理和消息提示
-
-### 阶段二: 公共组件开发
-
-**component-error-boundary** - 创建错误边界组件
-- 使用 React Error Boundary 捕获运行时错误
-- 显示友好的错误提示页面
-- 提供重试或返回首页的操作按钮
-- 记录错误日志到控制台
-
-**component-layout** - 创建应用布局组件
-- 顶部导航栏: 显示应用名称、用户信息、退出登录按钮
-- 侧边导航栏: 包含图像评估、历史记录、个人信息等导航链接
-- 使用 Material UI 的 AppBar、Drawer、List、ListItem 等组件
-- 使用 @mui/icons-material 提供图标 (如 AssessmentIcon, HistoryIcon, PersonIcon)
-- 点击退出登录时清除 authStore 并跳转到登录页
-
-**component-snackbar** - 创建全局消息提示组件
-- 基于 MUI Snackbar + Alert 组件
-- 连接 snackbarStore 实现全局调用
-- 支持成功(success)、错误(error)、警告(warning)、信息(info)四种类型
-- 自动关闭时长 3-5 秒
-
-**component-protected-route** - 创建路由守卫组件
-- 检查 authStore 中的 token 是否存在
-- 未登录时重定向到 /login 页面
-- 保护需要认证的页面路由
-
-### 阶段三: 认证页面开发
-
-**page-login** - 登录页面
-- 使用 MUI TextField 创建用户名和密码输入框
-- 使用 MUI Button 创建登录按钮
-- 表单验证: 用户名和密码不能为空
-- 调用登录 API，成功后保存 token 和用户信息到 authStore (会自动持久化到 localStorage)
-- 显示 Snackbar 提示登录结果
-- 登录成功后跳转到 /assessment 图像评估页面
-- 提供"前往注册"链接跳转到注册页面
-- **页面初始化时自动登录逻辑**:
-  - 尝试从 localStorage 读取持久化的用户信息和 token
-  - 如果 token 存在，调用 /auth/refresh 接口刷新 token
-  - 刷新成功: 更新 authStore，显示"自动登录成功"提示，跳转到 /assessment
-  - 刷新失败: 清除 authStore，停留在登录页
-
-**page-register** - 注册页面
-- 使用 MUI TextField 创建用户名、密码、确认密码输入框
-- 使用 MUI Button 创建注册按钮
-- 表单验证: 
-  - 用户名长度 3-50 字符
-  - 密码长度至少 6 字符
-  - 确认密码与密码一致
-- 调用注册 API，成功后保存 token 和用户信息到 authStore
-- 显示 Snackbar 提示注册结果
-- 注册成功后跳转到 /assessment 图像评估页面
-- 提供"前往登录"链接跳转到登录页面
-- **页面初始化时同样执行自动登录逻辑**(与登录页相同)
-
-### 阶段四: 图像评估页面开发
-
-**page-assessment-ui** - 评估页面UI结构
-- 使用 MUI Tabs 组件实现 Tab 切换: 单张评估 / 批量评估
-- 单张评估 Tab: 文件上传区域 + 图片预览 + 评估按钮 + 结果显示卡片
-- 批量评估 Tab: 多文件上传区域 + 图片列表预览 + 评估按钮 + 进度条 + 结果列表
-- 使用 MUI Tabs、Button、Card、Box 等组件
-
-**page-assessment-single** - 单张图片评估功能
-- 使用 input type="file" accept="image/*" 选择单张图片
-- **图片预览**: 选择图片后使用 FileReader 读取并显示预览 (img 标签显示 base64 或 blob URL)
-- 点击评估按钮后禁用按钮并显示加载状态 (按钮显示 CircularProgress)
-- 调用 /assess 接口提交图片 (使用 FormData)
-- 显示评估结果卡片:
-  - 文件名
-  - 质量分数 (保留两位小数)
-  - 场景分类 (使用 constants.ts 中的 sceneLabel 映射为中文)
-  - 失真类型 (使用 constants.ts 中的 distLabel 映射为中文)
-- 完成后显示 Snackbar 提示 "评估完成"
-
-**page-assessment-batch** - 批量图片评估功能
-- 使用 input type="file" accept="image/*" multiple 选择多张图片
-- **图片列表预览**: 显示所有选中图片的缩略图列表 (使用 Grid 或 ImageList 组件)
-- 点击评估按钮后禁用按钮
-- 调用 /assess/batch 接口，使用 **EventSource 或 fetch API 处理 SSE 流式响应**
-- 使用 MUI LinearProgress 显示总体进度百分比
-- 实时解析 SSE 事件:
-  - start 事件: 显示"批量评估开始"
-  - progress 事件: 更新进度条
-  - result 事件: 将单个结果添加到结果列表中显示
-  - completed 事件: 显示"批量评估完成", 启用评估按钮
-  - error 事件: 显示错误提示
-- 结果列表使用 MUI List 或 Card 组件显示每张图片的评估结果
-- 完成后显示 Snackbar 提示 "批量评估完成, 共评估 X 张图片"
-
-### 阶段五: 历史记录页面开发
-
-**page-history** - 历史记录表格页面
-- 使用 MUI Table (TableContainer, Table, TableHead, TableBody, TableRow, TableCell) 显示评估历史
-- 调用 /assess/history 接口获取分页数据
-- 实现分页功能: 使用 MUI TablePagination 组件
-  - 支持翻页 (上一页/下一页)
-  - 支持设置每页显示数量 (可选项: 5, 10, 20, 50)
-  - 显示总记录数和当前页码
-- 表格列:
-  - ID (序号)
-  - 缩略图 (显示 base64 压缩图片, 使用 img 标签, 固定宽高如 60x60)
-  - 文件名
-  - 评估时间 (格式化为 YYYY-MM-DD HH:mm:ss)
-  - 质量分数 (保留两位小数)
-  - 场景分类 (使用 sceneLabel 映射)
-  - 失真类型 (使用 distLabel 映射)
-- **缩略图点击查看**: 点击缩略图时弹出 MUI Dialog 显示大图
-- 页面初始化时加载第一页数据
-- 数据为空时显示"暂无评估记录"提示
-
-### 阶段六: 用户信息页面开发
-
-**page-profile-view** - 用户信息展示
-- 调用 /user/info 接口获取用户信息
-- 使用 MUI Card 显示用户信息: ID、用户名、注册时间
-- 提供编辑按钮进入编辑模式
-
-**page-profile-edit** - 用户信息编辑
-- 使用 TextField 提供用户名修改
-- 密码修改: 旧密码、新密码、确认新密码三个输入框
-- 表单验证: 用户名长度 3-50，密码长度至少 6，新密码二次确认一致
-- 调用 /user/update-info 接口提交修改
-- 修改成功后显示 Snackbar 提示并刷新用户信息
-
-### 阶段七: 路由配置与集成
-
-**setup-routes** - 配置 React Router 数据模式路由
-- 创建 src/routes/index.tsx 路由配置文件
-- **使用 createBrowserRouter 创建路由对象** (而非旧版的 BrowserRouter)
-- 在 App.tsx 或 main.tsx 中使用 RouterProvider 渲染路由
-- 定义路由结构:
-  - `/login` - 登录页面 (公开路由)
-  - `/register` - 注册页面 (公开路由)
-  - `/` - 重定向到 `/assessment`
-  - `/assessment` - 图像评估页面 (受保护路由)
-  - `/history` - 历史记录页面 (受保护路由)
-  - `/profile` - 用户信息页面 (受保护路由)
-  - `*` (404) - 未找到页面，显示友好提示
-- 受保护路由使用 ProtectedRoute 组件包装
-- 为受保护路由添加 Layout 布局组件
-
-**setup-mui-locale** - 配置 MUI 中文地域
-- 在 App.tsx 或 main.tsx 中配置 ThemeProvider
-- 从 @mui/material/locale 导入 zhCN
-- 使用 createTheme 创建主题时传入 zhCN: `createTheme({}, zhCN)`
-- 确保所有 MUI 组件的预设文本 (如分页器、表格等) 显示为中文
-
-**setup-auto-refresh** - 实现非登录页面的 token 自动刷新
-- 在受保护路由的根组件中添加初始化逻辑
-- 页面加载时检查 localStorage 中是否有 token
-- 如果有 token:
-  - 调用 /auth/refresh 接口刷新 token
-  - 刷新成功: 更新 authStore 的 token，并调用 /user/info 更新用户信息
-  - 刷新失败: 清除 authStore，显示"登录已过期"提示，跳转到 /login
-- 如果没有 token: 由 ProtectedRoute 自动跳转到 /login
-
-**integration-testing** - 集成测试
-- 测试登录/注册流程
-- 测试单张和批量图片评估功能
-- 测试历史记录查询和分页
-- 测试用户信息查看和修改
-- 测试路由导航和守卫功能
-- 验证所有 Snackbar 提示显示正常
-
-### 阶段八: 优化与完善
-
-**code-review** - 代码审查与优化
-- 确保所有代码包含详尽的中文注释
-- 检查所有文件的注释标点符号使用英文
-- 优化代码结构和命名规范
-- 检查 TypeScript 类型定义完整性
-
-**error-handling** - 错误处理完善
-- 统一 API 错误处理
-- 401 未授权时清除 token 并跳转登录
-- 网络错误时显示友好提示
-- 文件上传失败的错误处理
-
-**ui-polish** - UI 细节优化
-- 统一组件样式和间距
-- 添加加载状态指示器
-- 添加空状态提示(如历史记录为空)
-
-## 依赖关系
-
-- **无依赖 (可并行)**: `setup-types`, `setup-stores`, `setup-services`
-- **阶段二公共组件**:
-  - `component-error-boundary`: 无依赖
-  - `component-snackbar`: 依赖 `setup-stores`, `setup-types`
-  - `component-layout`: 依赖 `setup-stores`, `setup-types`
-  - `component-protected-route`: 依赖 `setup-stores`
-- **阶段三认证页面**:
-  - `page-login`: 依赖 `setup-services`, `component-snackbar`
-  - `page-register`: 依赖 `setup-services`, `component-snackbar`
-- **阶段四评估页面**:
-  - `page-assessment-ui`: 依赖 `setup-services`, `setup-types`
-  - `page-assessment-single`: 依赖 `page-assessment-ui`, `component-snackbar`
-  - `page-assessment-batch`: 依赖 `page-assessment-ui`, `component-snackbar`
-- **阶段五历史页面**:
-  - `page-history`: 依赖 `setup-services`, `component-layout`
-- **阶段六个人信息页面**:
-  - `page-profile-view`: 依赖 `setup-services`, `component-layout`
-  - `page-profile-edit`: 依赖 `page-profile-view`, `component-snackbar`
-- **阶段七路由与集成**:
-  - `setup-routes`: 依赖所有页面组件和 `component-protected-route`
-  - `setup-mui-locale`: 无依赖
-  - `setup-auto-refresh`: 依赖 `setup-services`, `setup-stores`, `setup-routes`
-  - `integration-testing`: 依赖所有功能完成
-- **阶段八优化完善**: 依赖 `integration-testing`
-
-## 技术注意事项
-
-1. **SSE 流式处理**: 批量评估使用 EventSource 或 fetch API 处理 text/event-stream 响应
-2. **Token 管理**: 
-   - accessToken 和用户信息存储在 Zustand store 中
-   - 使用 persist 中间件自动持久化到 localStorage
-   - axios 请求拦截器自动从 store 读取 token 并添加到 Authorization 请求头
-   - 响应拦截器捕获 401 错误，自动清除 store 并跳转登录页
-3. **自动登录机制**:
-   - 登录/注册页面初始化: 读取 localStorage → 调用 /auth/refresh → 成功则跳转
-   - 非登录页面刷新: 读取 localStorage → 调用 /auth/refresh → 调用 /user/info → 失败则跳转登录
-4. **表单数据格式**: 
-   - 注册和登录使用 application/x-www-form-urlencoded 格式
-   - 用户信息更新使用 application/x-www-form-urlencoded 格式
-5. **文件上传**: 使用 multipart/form-data 格式，FormData 对象封装文件
-6. **图片预览**: 使用 FileReader.readAsDataURL() 或 URL.createObjectURL() 实现本地预览
-7. **场景和失真映射**: 使用 src/utils/constants.ts 中的 sceneLabel 和 distLabel 对象
-8. **日期格式化**: 手动格式化 ISO 8601 日期字符串为 YYYY-MM-DD HH:mm:ss 格式
-9. **Material UI v7**: 
-   - 使用内置的 zhCN locale，无需额外安装语言包
-   - 使用 createTheme 配置主题和地域
-   - 注意最新版本的 API 可能与 v5/v6 不同
-10. **React Router v7**: 使用数据模式路由 (createBrowserRouter + RouterProvider，而非 BrowserRouter)
-11. **错误边界**: 使用 React 18+ 的 Error Boundary 捕获运行时错误
-12. **图标库**: 使用 @mui/icons-material 提供导航和操作图标
-
-## 开发顺序建议
-
-1. **阶段一 (基础设施)**: setup-types, setup-stores, setup-services 可并行开发
-2. **阶段二 (公共组件)**: component-error-boundary → component-snackbar → component-layout → component-protected-route
-3. **阶段三 (认证页面)**: page-login 和 page-register 可并行开发，完成后可测试登录流程
-4. **阶段四 (评估页面)**: page-assessment-ui → page-assessment-single → page-assessment-batch
-5. **阶段五 (历史页面)**: page-history
-6. **阶段六 (个人信息)**: page-profile-view → page-profile-edit
-7. **阶段七 (路由集成)**: setup-mui-locale 和 setup-routes 并行 → setup-auto-refresh → integration-testing
-8. **阶段八 (优化完善)**: code-review, error-handling, ui-polish 可并行进行
-
-## 质量标准
-
-- ✅ 所有代码包含详尽的中文注释，使用英文标点符号
-- ✅ 所有用户可见文本 (按钮、提示、标签等) 使用中文
-- ✅ Material UI 地域设置为 zh_CN (使用内置 locale)
-- ✅ 完整的 TypeScript 类型定义，避免使用 any 类型
-- ✅ 统一的错误处理和用户提示 (通过 Snackbar)
-- ✅ Token 持久化和自动登录/刷新机制
-- ✅ 错误边界捕获运行时错误
-- ✅ 图片预览和缩略图显示功能
-- ✅ SSE 流式处理批量评估进度
-- ✅ 遵循 React 最佳实践和 Hooks 规范
-- ✅ 使用 React Router v7 数据模式路由
-
-## 前置准备
-
-在开始开发前，请确保已完成以下准备工作:
-
-1. **安装 MUI 图标库**:
-   ```bash
-   pnpm add @mui/icons-material
-   ```
-
-2. **确认现有文件**:
-   - ✅ `src/utils/constants.ts` - 场景和失真类型映射已存在
-   - ✅ `src/utils/api-request.ts` - Axios 实例已配置
-
-3. **后端服务**: 确保后端服务运行在 `http://localhost:8080`
-
----
-
-**项目版本**: 0.0.1  
-**创建时间**: 2026-03-27  
-**技术栈**: React 19 + TypeScript + Material UI v7 + React Router v7
+## Assumptions
+- 登录态默认持久化到 `localStorage`, 以支持刷新后保留会话.
+- 应用启动时若本地存在认证信息, 则通过 `/auth/refresh` 尝试自动登录并刷新 token; 刷新失败时统一清理登录态并回到登录页.
+- `Authorization` 请求头固定直接发送 `${accessToken}`, 不拼接 `tokenType`.
+- 历史记录接口中的 `scene` 和 `distortion` 可能返回文本编码或数字字符串, 前端按“先映射, 后回退原值”的策略展示.
+- 当前仓库没有现成测试框架和业务代码, 本期以类型检查, lint, build 和手工流程验证为主, 不额外引入 Vitest 或 E2E 依赖.
