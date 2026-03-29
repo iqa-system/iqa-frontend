@@ -57,7 +57,7 @@ function ResultCard({ result }: ResultCardProps) {
       <CardContent>
         <Stack spacing={2}>
           <Stack spacing={0.5}>
-            <Typography variant="subtitle1">{result.file_name}</Typography>
+            <Typography sx={{fontWeight: 'bolder'}} variant="subtitle1">{result.file_name}</Typography>
             <Typography color="text.secondary" variant="body2">
               模型已完成质量、场景与失真识别。
             </Typography>
@@ -72,7 +72,7 @@ function ResultCard({ result }: ResultCardProps) {
             <Box
               sx={{
                 bgcolor: alpha('#136f63', 0.08),
-                borderRadius: 3,
+                borderRadius: 1,
                 p: 2,
               }}
             >
@@ -87,7 +87,7 @@ function ResultCard({ result }: ResultCardProps) {
             <Box
               sx={{
                 bgcolor: alpha('#ff7a59', 0.1),
-                borderRadius: 3,
+                borderRadius: 1,
                 p: 2,
               }}
             >
@@ -384,8 +384,7 @@ function AssessmentPage() {
                   </CardContent>
                 </Card>
 
-                <Stack spacing={3}>
-                  <Card variant="outlined">
+                <Card variant="outlined">
                     <CardContent>
                       <Stack spacing={2}>
                         <Typography variant="h5">图片预览</Typography>
@@ -436,8 +435,9 @@ function AssessmentPage() {
                     </CardContent>
                   </Card>
 
+                <div style={{ gridColumnStart: 1, gridColumnEnd: 3 }}>
                   {singleResult ? <ResultCard result={singleResult} /> : null}
-                </Stack>
+                </div>
               </Box>
             ) : (
               <Stack spacing={3}>
@@ -524,7 +524,7 @@ function AssessmentPage() {
                                   border: '1px solid rgba(15, 23, 42, 0.08)',
                                   cursor: 'zoom-in',
                                   overflow: 'hidden',
-                                  borderRadius: 3,
+                                  borderRadius: 1,
                                 }}
                               >
                                 <img
@@ -595,7 +595,7 @@ function AssessmentPage() {
               component="img"
               src={previewDialog.imageUrl}
               sx={{
-                borderRadius: 2,
+                borderRadius: 1,
                 maxHeight: '70vh',
                 objectFit: 'contain',
                 width: '100%',

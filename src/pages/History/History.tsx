@@ -181,7 +181,7 @@ function HistoryPage() {
               component="img"
               src={previewImage}
               sx={{
-                borderRadius: 2,
+                borderRadius: 1,
                 maxHeight: '70vh',
                 objectFit: 'contain',
                 width: '100%',

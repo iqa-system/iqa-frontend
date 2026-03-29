@@ -56,7 +56,7 @@ function DistortionList({
             {item.isPrimary ? (
               <Chip
                 color="primary"
-                label="主失真"
+                label="主要占比"
                 size="small"
                 sx={{ height: 22 }}
                 variant="filled"
