@@ -27,6 +27,39 @@ export function formatQualityScore(score: number | null | undefined) {
   return score.toFixed(2)
 }
 
+export const QUALITY_LEVEL_LABELS: Record<1 | 2 | 3 | 4 | 5, string> = {
+  1: '差',
+  2: '较差',
+  3: '一般',
+  4: '良好',
+  5: '完美',
+}
+
+export interface QualityScoreDisplay {
+  levelLabel: string
+  levelValue: 1 | 2 | 3 | 4 | 5 | null
+  rawText: string
+}
+
+export function getQualityScoreDisplay(score: number | null | undefined): QualityScoreDisplay {
+  if (score === null || score === undefined || Number.isNaN(score)) {
+    return {
+      levelLabel: '未知等级',
+      levelValue: null,
+      rawText: '--',
+    }
+  }
+
+  const roundedScore = Math.round(score)
+  const levelValue = Math.min(5, Math.max(1, roundedScore)) as 1 | 2 | 3 | 4 | 5
+
+  return {
+    levelLabel: QUALITY_LEVEL_LABELS[levelValue],
+    levelValue,
+    rawText: formatQualityScore(score),
+  }
+}
+
 export function normalizeBase64Image(base64: string | null | undefined) {
   if (!base64) {
     return ''

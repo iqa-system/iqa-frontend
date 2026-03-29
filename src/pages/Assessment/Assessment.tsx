@@ -6,6 +6,9 @@ import {
   Card,
   CardContent,
   Chip,
+  Dialog,
+  DialogContent,
+  DialogTitle,
   Divider,
   ImageList,
   ImageListItem,
@@ -27,7 +30,7 @@ import { useSnackbarStore } from '@/stores/snackbarStore'
 import type { BatchAssessmentEvent, PredictResult } from '@/types/api'
 import { extractErrorMessage } from '@/utils/api-request'
 import { getSceneLabel } from '@/utils/constants'
-import { formatQualityScore } from '@/utils/format'
+import { getQualityScoreDisplay } from '@/utils/format'
 
 type AssessmentTab = 'single' | 'batch'
 
@@ -41,6 +44,8 @@ interface ResultCardProps {
 }
 
 function ResultCard({ result }: ResultCardProps) {
+  const qualityDisplay = getQualityScoreDisplay(result.quality_score)
+
   return (
     <Card
       sx={{
@@ -74,7 +79,10 @@ function ResultCard({ result }: ResultCardProps) {
               <Typography color="text.secondary" variant="caption">
                 质量分数
               </Typography>
-              <Typography variant="h5">{formatQualityScore(result.quality_score)}</Typography>
+              <Typography variant="h5">{qualityDisplay.rawText}</Typography>
+              <Typography color="text.secondary" sx={{ mt: 0.5 }} variant="body2">
+                质量等级: {qualityDisplay.levelLabel}
+              </Typography>
             </Box>
             <Box
               sx={{
@@ -106,6 +114,11 @@ function AssessmentPage() {
   const showInfo = useSnackbarStore(state => state.showInfo)
   const showSuccess = useSnackbarStore(state => state.showSuccess)
   const [activeTab, setActiveTab] = useState<AssessmentTab>('single')
+  const [previewDialog, setPreviewDialog] = useState({
+    fileName: '',
+    imageUrl: '',
+    open: false,
+  })
 
   const [singleFile, setSingleFile] = useState<File | null>(null)
   const [singlePreviewUrl, setSinglePreviewUrl] = useState('')
@@ -147,6 +160,26 @@ function AssessmentPage() {
 
     return `已选择 ${batchFiles.length} 张图片`
   }, [batchFiles.length])
+
+  const openPreviewDialog = (imageUrl: string, fileName: string) => {
+    if (!imageUrl) {
+      return
+    }
+
+    setPreviewDialog({
+      fileName,
+      imageUrl,
+      open: true,
+    })
+  }
+
+  const closePreviewDialog = () => {
+    setPreviewDialog({
+      fileName: '',
+      imageUrl: '',
+      open: false,
+    })
+  }
 
   const handleSingleFileChange = (file: File | null) => {
     if (singlePreviewUrl) {
@@ -374,9 +407,13 @@ function AssessmentPage() {
                             <Box
                               alt={singleFile?.name ?? '预览图'}
                               component="img"
+                              onClick={() =>
+                                openPreviewDialog(singlePreviewUrl, singleFile?.name ?? '预览图')
+                              }
                               src={singlePreviewUrl}
                               sx={{
                                 borderRadius: 3,
+                                cursor: 'zoom-in',
                                 maxHeight: 420,
                                 objectFit: 'contain',
                               }}
@@ -390,6 +427,11 @@ function AssessmentPage() {
                             </Stack>
                           )}
                         </Box>
+                        {singlePreviewUrl ? (
+                          <Typography color="text.secondary" variant="caption">
+                            点击图片可放大查看。
+                          </Typography>
+                        ) : null}
                       </Stack>
                     </CardContent>
                   </Card>
@@ -467,11 +509,20 @@ function AssessmentPage() {
                       <Stack spacing={2}>
                         <Typography variant="h5">文件预览</Typography>
                         {batchPreviews.length ? (
+                          <Typography color="text.secondary" variant="caption">
+                            点击任一缩略图可放大查看, 预览下方显示文件名。
+                          </Typography>
+                        ) : null}
+                        {batchPreviews.length ? (
                           <ImageList cols={4} gap={16}>
                             {batchPreviews.map(item => (
                               <ImageListItem
                                 key={item.url}
+                                onClick={() => openPreviewDialog(item.url, item.name)}
                                 sx={{
+                                  backgroundColor: 'rgba(255, 255, 255, 0.7)',
+                                  border: '1px solid rgba(15, 23, 42, 0.08)',
+                                  cursor: 'zoom-in',
                                   overflow: 'hidden',
                                   borderRadius: 3,
                                 }}
@@ -482,6 +533,11 @@ function AssessmentPage() {
                                   src={item.url}
                                   style={{ aspectRatio: '1 / 1', objectFit: 'cover' }}
                                 />
+                                <Box sx={{ px: 1.25, py: 1 }}>
+                                  <Typography noWrap title={item.name} variant="caption">
+                                    {item.name}
+                                  </Typography>
+                                </Box>
                               </ImageListItem>
                             ))}
                           </ImageList>
@@ -529,6 +585,25 @@ function AssessmentPage() {
           </Stack>
         </CardContent>
       </Card>
+
+      <Dialog maxWidth="md" onClose={closePreviewDialog} open={previewDialog.open}>
+        <DialogTitle>{previewDialog.fileName || '图片预览'}</DialogTitle>
+        <DialogContent>
+          {previewDialog.imageUrl ? (
+            <Box
+              alt={previewDialog.fileName || '评估页预览图'}
+              component="img"
+              src={previewDialog.imageUrl}
+              sx={{
+                borderRadius: 2,
+                maxHeight: '70vh',
+                objectFit: 'contain',
+                width: '100%',
+              }}
+            />
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </Stack>
   )
 }

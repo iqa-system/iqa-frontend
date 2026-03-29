@@ -26,7 +26,7 @@ import { useSnackbarStore } from '@/stores/snackbarStore'
 import type { AssessRecord } from '@/types/api'
 import { extractErrorMessage } from '@/utils/api-request'
 import { getSceneLabel } from '@/utils/constants'
-import { formatDateTime, formatQualityScore, normalizeBase64Image } from '@/utils/format'
+import { formatDateTime, getQualityScoreDisplay, normalizeBase64Image } from '@/utils/format'
 
 function HistoryPage() {
   const showError = useSnackbarStore(state => state.showError)
@@ -106,33 +106,44 @@ function HistoryPage() {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {records.map(record => (
-                      <TableRow hover key={record.id}>
-                        <TableCell>{record.id}</TableCell>
-                        <TableCell>
-                          <Box
-                            alt={record.filename}
-                            component="img"
-                            onClick={() => setPreviewImage(normalizeBase64Image(record.base64))}
-                            src={normalizeBase64Image(record.base64)}
-                            sx={{
-                              borderRadius: 2,
-                              cursor: 'pointer',
-                              height: 60,
-                              objectFit: 'cover',
-                              width: 60,
-                            }}
-                          />
-                        </TableCell>
-                        <TableCell>{record.filename}</TableCell>
-                        <TableCell>{formatDateTime(record.assessTime)}</TableCell>
-                        <TableCell>{formatQualityScore(record.qualityScore)}</TableCell>
-                        <TableCell>{getSceneLabel(record.scene)}</TableCell>
-                        <TableCell sx={{ maxWidth: 280, minWidth: 220 }}>
-                          <DistortionList distortions={record.distortions} variant="chips" />
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {records.map(record => {
+                      const qualityDisplay = getQualityScoreDisplay(record.qualityScore)
+
+                      return (
+                        <TableRow hover key={record.id}>
+                          <TableCell>{record.id}</TableCell>
+                          <TableCell>
+                            <Box
+                              alt={record.filename}
+                              component="img"
+                              onClick={() => setPreviewImage(normalizeBase64Image(record.base64))}
+                              src={normalizeBase64Image(record.base64)}
+                              sx={{
+                                borderRadius: 2,
+                                cursor: 'pointer',
+                                height: 60,
+                                objectFit: 'cover',
+                                width: 60,
+                              }}
+                            />
+                          </TableCell>
+                          <TableCell>{record.filename}</TableCell>
+                          <TableCell>{formatDateTime(record.assessTime)}</TableCell>
+                          <TableCell>
+                            <Stack spacing={0.25}>
+                              <Typography variant="body2">{qualityDisplay.rawText}</Typography>
+                              <Typography color="text.secondary" variant="caption">
+                                {qualityDisplay.levelLabel}
+                              </Typography>
+                            </Stack>
+                          </TableCell>
+                          <TableCell>{getSceneLabel(record.scene)}</TableCell>
+                          <TableCell sx={{ maxWidth: 280, minWidth: 220 }}>
+                            <DistortionList distortions={record.distortions} variant="chips" />
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
                   </TableBody>
                 </Table>
                 <TablePagination

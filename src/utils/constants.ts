@@ -43,6 +43,7 @@ export function getDistortionLabel(distortion: string | number | null | undefine
 }
 
 export interface DistortionDisplayItem {
+  isPrimary: boolean
   key: string
   label: string
   probability: number | null
@@ -63,6 +64,7 @@ export function getDistortionDisplayItems(
   if (!Array.isArray(distortions) || distortions.length === 0) {
     return [
       {
+        isPrimary: false,
         key: 'unknown-distortion',
         label: '未知失真',
         probability: null,
@@ -80,10 +82,15 @@ export function getDistortionDisplayItems(
       probabilityText: formatDistortionProbability(distortion.prob),
     }))
     .sort((left, right) => (right.probability ?? -1) - (left.probability ?? -1))
+    .map((item, index) => ({
+      ...item,
+      isPrimary: index === 0,
+    }))
 
   if (!items.length) {
     return [
       {
+        isPrimary: false,
         key: 'unknown-distortion',
         label: '未知失真',
         probability: null,
