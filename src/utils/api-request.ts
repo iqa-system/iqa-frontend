@@ -67,7 +67,7 @@ export function handleUnauthorizedState(message = '登录状态已失效, 请重
 
 const apiRequest: AxiosInstance = axios.create({
   baseURL,
-  timeout: 10000,
+  timeout: 20000,
 })
 
 // 统一从全局认证状态中读取令牌, 保证 axios 请求自动带上 Authorization。
