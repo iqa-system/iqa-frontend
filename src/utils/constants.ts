@@ -1,3 +1,5 @@
+import type { DistortionProb } from '@/types/api'
+
 export const sceneLabelMap: Record<string, string> = {
   '0': '动物',
   '1': '城市',
@@ -38,4 +40,57 @@ export function getDistortionLabel(distortion: string | number | null | undefine
   }
 
   return distLabelMap[String(distortion)] ?? `失真 ${distortion}`
+}
+
+export interface DistortionDisplayItem {
+  key: string
+  label: string
+  probability: number | null
+  probabilityText: string
+}
+
+export function formatDistortionProbability(probability: number | null | undefined) {
+  if (typeof probability !== 'number' || Number.isNaN(probability)) {
+    return '--'
+  }
+
+  return `${(probability * 100).toFixed(2)}%`
+}
+
+export function getDistortionDisplayItems(
+  distortions: DistortionProb[] | null | undefined,
+): DistortionDisplayItem[] {
+  if (!Array.isArray(distortions) || distortions.length === 0) {
+    return [
+      {
+        key: 'unknown-distortion',
+        label: '未知失真',
+        probability: null,
+        probabilityText: '--',
+      },
+    ]
+  }
+
+  const items = distortions
+    .filter(distortion => typeof distortion?.index === 'number')
+    .map((distortion, index) => ({
+      key: `${distortion.index}-${index}`,
+      label: getDistortionLabel(distortion.index),
+      probability: typeof distortion.prob === 'number' ? distortion.prob : null,
+      probabilityText: formatDistortionProbability(distortion.prob),
+    }))
+    .sort((left, right) => (right.probability ?? -1) - (left.probability ?? -1))
+
+  if (!items.length) {
+    return [
+      {
+        key: 'unknown-distortion',
+        label: '未知失真',
+        probability: null,
+        probabilityText: '--',
+      },
+    ]
+  }
+
+  return items
 }

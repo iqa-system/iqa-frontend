@@ -18,11 +18,16 @@ export interface UserInfo {
   registerTime: string
 }
 
+export interface DistortionProb {
+  index: number
+  prob: number
+}
+
 export interface PredictResult {
   file_name: string
   quality_score: number
   scene: number
-  distortion: number
+  distortions: DistortionProb[]
 }
 
 export interface AssessRecord {
@@ -33,7 +38,7 @@ export interface AssessRecord {
   assessTime: string
   qualityScore: number
   scene: string | number
-  distortion: string | number
+  distortions: DistortionProb[]
 }
 
 export interface PageAssessRecord {

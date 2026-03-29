@@ -19,12 +19,13 @@ import {
   Typography,
 } from '@mui/material'
 
+import DistortionList from '@/components/DistortionList'
 import LoadingScreen from '@/components/LoadingScreen'
 import { getAssessmentHistory } from '@/services/assessment'
 import { useSnackbarStore } from '@/stores/snackbarStore'
 import type { AssessRecord } from '@/types/api'
 import { extractErrorMessage } from '@/utils/api-request'
-import { getDistortionLabel, getSceneLabel } from '@/utils/constants'
+import { getSceneLabel } from '@/utils/constants'
 import { formatDateTime, formatQualityScore, normalizeBase64Image } from '@/utils/format'
 
 function HistoryPage() {
@@ -127,7 +128,9 @@ function HistoryPage() {
                         <TableCell>{formatDateTime(record.assessTime)}</TableCell>
                         <TableCell>{formatQualityScore(record.qualityScore)}</TableCell>
                         <TableCell>{getSceneLabel(record.scene)}</TableCell>
-                        <TableCell>{getDistortionLabel(record.distortion)}</TableCell>
+                        <TableCell sx={{ maxWidth: 280, minWidth: 220 }}>
+                          <DistortionList distortions={record.distortions} variant="chips" />
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

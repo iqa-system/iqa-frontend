@@ -21,11 +21,12 @@ import CloudUploadRoundedIcon from '@mui/icons-material/CloudUploadRounded'
 import ImageSearchRoundedIcon from '@mui/icons-material/ImageSearchRounded'
 import { alpha } from '@mui/material/styles'
 
+import DistortionList from '@/components/DistortionList'
 import { assessBatchImages, assessSingleImage } from '@/services/assessment'
 import { useSnackbarStore } from '@/stores/snackbarStore'
 import type { BatchAssessmentEvent, PredictResult } from '@/types/api'
 import { extractErrorMessage } from '@/utils/api-request'
-import { getDistortionLabel, getSceneLabel } from '@/utils/constants'
+import { getSceneLabel } from '@/utils/constants'
 import { formatQualityScore } from '@/utils/format'
 
 type AssessmentTab = 'single' | 'batch'
@@ -60,7 +61,7 @@ function ResultCard({ result }: ResultCardProps) {
             sx={{
               display: 'grid',
               gap: 1.5,
-              gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+              gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
             }}
           >
             <Box
@@ -82,24 +83,18 @@ function ResultCard({ result }: ResultCardProps) {
                 p: 2,
               }}
             >
-              <Typography color="text.secondary" variant="caption">
-                场景分类
-              </Typography>
-              <Typography variant="body1">{getSceneLabel(result.scene)}</Typography>
-            </Box>
-            <Box
-              sx={{
-                bgcolor: alpha('#2c3e50', 0.08),
-                borderRadius: 3,
-                p: 2,
-              }}
-            >
-              <Typography color="text.secondary" variant="caption">
-                失真类型
-              </Typography>
-              <Typography variant="body1">{getDistortionLabel(result.distortion)}</Typography>
-            </Box>
+                <Typography color="text.secondary" variant="caption">
+                  场景分类
+                </Typography>
+                <Typography variant="body1">{getSceneLabel(result.scene)}</Typography>
+              </Box>
           </Box>
+          <Stack spacing={1}>
+            <Typography color="text.secondary" variant="caption">
+              失真类型分布
+            </Typography>
+            <DistortionList distortions={result.distortions} variant="panel" />
+          </Stack>
         </Stack>
       </CardContent>
     </Card>
