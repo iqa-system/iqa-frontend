@@ -78,7 +78,7 @@ export function getDistortionDisplayItems(
     .map((distortion, index) => ({
       key: `${distortion.index}-${index}`,
       label: getDistortionLabel(distortion.index),
-      probability: typeof distortion.prob === 'number' ? distortion.prob : null,
+      probability: distortion.prob,
       probabilityText: formatDistortionProbability(distortion.prob),
     }))
     .sort((left, right) => (right.probability ?? -1) - (left.probability ?? -1))

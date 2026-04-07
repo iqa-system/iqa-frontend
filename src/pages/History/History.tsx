@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react'
 import {
   Alert,
   Box,
+  Button,
   Card,
   CardContent,
+  Checkbox,
   Dialog,
   DialogContent,
   DialogTitle,
@@ -27,18 +29,23 @@ import type { AssessRecord } from '@/types/api'
 import { extractErrorMessage } from '@/utils/api-request'
 import { getSceneLabel } from '@/utils/constants'
 import { formatDateTime, getQualityScoreDisplay, normalizeBase64Image } from '@/utils/format'
+import { exportHistoryRecords, type HistoryExportFormat } from '@/utils/history-export'
 
 function HistoryPage() {
   const showError = useSnackbarStore(state => state.showError)
+  const showSuccess = useSnackbarStore(state => state.showSuccess)
   const [records, setRecords] = useState<AssessRecord[]>([])
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
   const [total, setTotal] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
+  const [selectedRecordIds, setSelectedRecordIds] = useState<number[]>([])
   const [previewImage, setPreviewImage] = useState('')
+  const [exportingFormat, setExportingFormat] = useState<HistoryExportFormat | null>(null)
 
   useEffect(() => {
     let active = true
+    setSelectedRecordIds([])
 
     void getAssessmentHistory({ page, pageSize })
       .then(data => {
@@ -64,6 +71,41 @@ function HistoryPage() {
       active = false
     }
   }, [page, pageSize, showError])
+
+  const selectedRecordIdSet = new Set(selectedRecordIds)
+  const selectedRecords = records.filter(record => selectedRecordIdSet.has(record.id))
+  const selectedCount = selectedRecords.length
+  const allRecordsSelected = records.length > 0 && selectedCount === records.length
+  const hasPartialSelection = selectedCount > 0 && selectedCount < records.length
+
+  const handleSelectAllRecords = (checked: boolean) => {
+    setSelectedRecordIds(checked ? records.map(record => record.id) : [])
+  }
+
+  const handleToggleRecord = (recordId: number) => {
+    setSelectedRecordIds(currentIds =>
+      currentIds.includes(recordId)
+        ? currentIds.filter(currentId => currentId !== recordId)
+        : [...currentIds, recordId],
+    )
+  }
+
+  const handleExport = async (format: HistoryExportFormat) => {
+    if (!selectedRecords.length) {
+      return
+    }
+
+    setExportingFormat(format)
+
+    try {
+      await exportHistoryRecords(selectedRecords, format)
+      showSuccess(`已导出 ${selectedRecords.length} 条历史记录（${format.toUpperCase()}）。`)
+    } catch (error) {
+      showError(extractErrorMessage(error, '历史记录导出失败。'))
+    } finally {
+      setExportingFormat(null)
+    }
+  }
 
   if (isLoading) {
     return (
@@ -92,77 +134,132 @@ function HistoryPage() {
         <Card>
           <CardContent sx={{ p: 0 }}>
             {records.length ? (
-              <TableContainer component={Paper} elevation={0}>
-                <Table sx={{ minWidth: 960 }}>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>ID</TableCell>
-                      <TableCell>缩略图</TableCell>
-                      <TableCell>文件名</TableCell>
-                      <TableCell>评估时间</TableCell>
-                      <TableCell>质量分数</TableCell>
-                      <TableCell>场景分类</TableCell>
-                      <TableCell>失真类型</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {records.map(record => {
-                      const qualityDisplay = getQualityScoreDisplay(record.qualityScore)
+              <>
+                <Box
+                  sx={{
+                    borderBottom: '1px solid rgba(15, 23, 42, 0.08)',
+                    px: 3,
+                    py: 2.5,
+                  }}
+                >
+                  <Stack
+                    direction={{ md: 'row', xs: 'column' }}
+                    justifyContent="space-between"
+                    spacing={2}
+                  >
+                    <Stack spacing={0.5}>
+                      <Typography variant="h6">批量导出</Typography>
+                      <Typography color="text.secondary" variant="body2">
+                        已选 {selectedCount} 条 / 当前页 {records.length} 条。仅导出当前页勾选记录。
+                      </Typography>
+                    </Stack>
+                    <Stack direction="row" flexWrap="wrap" gap={1}>
+                      <Button
+                        disabled={!selectedCount || exportingFormat !== null}
+                        onClick={() => void handleExport('csv')}
+                        variant="outlined"
+                      >
+                        {exportingFormat === 'csv' ? '导出中...' : '导出 CSV'}
+                      </Button>
+                      <Button
+                        disabled={!selectedCount || exportingFormat !== null}
+                        onClick={() => void handleExport('xlsx')}
+                        variant="contained"
+                      >
+                        {exportingFormat === 'xlsx' ? '导出中...' : '导出 XLSX'}
+                      </Button>
+                    </Stack>
+                  </Stack>
+                </Box>
 
-                      return (
-                        <TableRow hover key={record.id}>
-                          <TableCell>{record.id}</TableCell>
-                          <TableCell>
-                            <Box
-                              alt={record.filename}
-                              component="img"
-                              onClick={() => setPreviewImage(normalizeBase64Image(record.base64))}
-                              src={normalizeBase64Image(record.base64)}
-                              sx={{
-                                borderRadius: 2,
-                                cursor: 'pointer',
-                                height: 60,
-                                objectFit: 'cover',
-                                width: 60,
-                              }}
-                            />
-                          </TableCell>
-                          <TableCell>{record.filename}</TableCell>
-                          <TableCell>{formatDateTime(record.assessTime)}</TableCell>
-                          <TableCell>
-                            <Stack spacing={0.25}>
-                              <Typography variant="body2">{qualityDisplay.rawText}</Typography>
-                              <Typography color="text.secondary" variant="caption">
-                                {qualityDisplay.levelLabel}
-                              </Typography>
-                            </Stack>
-                          </TableCell>
-                          <TableCell>{getSceneLabel(record.scene)}</TableCell>
-                          <TableCell sx={{ maxWidth: 280, minWidth: 220 }}>
-                            <DistortionList distortions={record.distortions} variant="chips" />
-                          </TableCell>
-                        </TableRow>
-                      )
-                    })}
-                  </TableBody>
-                </Table>
-                <TablePagination
-                  component="div"
-                  count={total}
-                  onPageChange={(_event, nextPage) => {
-                    setIsLoading(true)
-                    setPage(nextPage + 1)
-                  }}
-                  onRowsPerPageChange={event => {
-                    setIsLoading(true)
-                    setPageSize(Number(event.target.value))
-                    setPage(1)
-                  }}
-                  page={page - 1}
-                  rowsPerPage={pageSize}
-                  rowsPerPageOptions={[5, 10, 20, 50]}
-                />
-              </TableContainer>
+                <TableContainer component={Paper} elevation={0}>
+                  <Table sx={{ minWidth: 1040 }}>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell padding="checkbox">
+                          <Checkbox
+                            checked={allRecordsSelected}
+                            indeterminate={hasPartialSelection}
+                            slotProps={{ input: { 'aria-label': '全选当前页记录' } }}
+                            onChange={event => handleSelectAllRecords(event.target.checked)}
+                          />
+                        </TableCell>
+                        <TableCell>ID</TableCell>
+                        <TableCell>缩略图</TableCell>
+                        <TableCell>文件名</TableCell>
+                        <TableCell>评估时间</TableCell>
+                        <TableCell>质量分数</TableCell>
+                        <TableCell>场景分类</TableCell>
+                        <TableCell>失真类型</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {records.map(record => {
+                        const isSelected = selectedRecordIdSet.has(record.id)
+                        const qualityDisplay = getQualityScoreDisplay(record.qualityScore)
+
+                        return (
+                          <TableRow hover key={record.id} selected={isSelected}>
+                            <TableCell padding="checkbox">
+                              <Checkbox
+                                checked={isSelected}
+                                slotProps={{ input: { 'aria-label': `选择历史记录 ${record.id}` } }}
+                                onChange={() => handleToggleRecord(record.id)}
+                              />
+                            </TableCell>
+                            <TableCell>{record.id}</TableCell>
+                            <TableCell>
+                              <Box
+                                alt={record.filename}
+                                component="img"
+                                onClick={() => setPreviewImage(normalizeBase64Image(record.base64))}
+                                src={normalizeBase64Image(record.base64)}
+                                sx={{
+                                  borderRadius: 2,
+                                  cursor: 'pointer',
+                                  height: 60,
+                                  objectFit: 'cover',
+                                  width: 60,
+                                }}
+                              />
+                            </TableCell>
+                            <TableCell>{record.filename}</TableCell>
+                            <TableCell>{formatDateTime(record.assessTime)}</TableCell>
+                            <TableCell>
+                              <Stack spacing={0.25}>
+                                <Typography variant="body2">{qualityDisplay.rawText}</Typography>
+                                <Typography color="text.secondary" variant="caption">
+                                  {qualityDisplay.levelLabel}
+                                </Typography>
+                              </Stack>
+                            </TableCell>
+                            <TableCell>{getSceneLabel(record.scene)}</TableCell>
+                            <TableCell sx={{ maxWidth: 280, minWidth: 220 }}>
+                              <DistortionList distortions={record.distortions} variant="chips" />
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })}
+                    </TableBody>
+                  </Table>
+                  <TablePagination
+                    component="div"
+                    count={total}
+                    onPageChange={(_event, nextPage) => {
+                      setIsLoading(true)
+                      setPage(nextPage + 1)
+                    }}
+                    onRowsPerPageChange={event => {
+                      setIsLoading(true)
+                      setPageSize(Number(event.target.value))
+                      setPage(1)
+                    }}
+                    page={page - 1}
+                    rowsPerPage={pageSize}
+                    rowsPerPageOptions={[5, 10, 20, 50, 100]}
+                  />
+                </TableContainer>
+              </>
             ) : (
               <Box sx={{ p: 3 }}>
                 <Alert severity="info">暂无评估记录。</Alert>

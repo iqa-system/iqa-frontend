@@ -18,6 +18,11 @@ import type {
 
 type SseEventName = 'start' | 'progress' | 'result' | 'completed' | 'error'
 
+/**
+ * 解析 SSE 数据块, 提取事件名称和数据负载
+ * @param chunk SSE 数据块文本
+ * @returns 包含事件名称和数据负载的对象
+ */
 function parseSseChunk(chunk: string): {
   eventName: SseEventName | 'unknown'
   payload: object
@@ -56,6 +61,12 @@ function parseSseChunk(chunk: string): {
   }
 }
 
+/**
+ * 读取批量评估的 SSE 流, 实时处理事件并调用回调函数
+ * @param stream SSE 响应体的可读流
+ * @param onEvent 事件回调函数, 接收解析后的事件对象
+ * @throws 当接收到 error 事件时抛出异常
+ */
 async function readBatchSseStream(
   stream: ReadableStream<Uint8Array>,
   onEvent: (event: BatchAssessmentEvent) => void,

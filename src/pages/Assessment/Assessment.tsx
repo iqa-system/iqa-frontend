@@ -309,11 +309,11 @@ function AssessmentPage() {
           />
           <Stack spacing={1.25}>
             <Typography variant="overline">Assessment Console</Typography>
-            <Typography sx={{ maxWidth: 720 }} variant="h3">
-              把上传、推理、结果呈现和批量进度跟踪放进同一个操作台。
+            <Typography  variant="h3">
+              图片上传、评估、结果呈现和批量进度跟踪
             </Typography>
             <Typography sx={{ color: 'rgba(255,255,255,0.84)', maxWidth: 720 }} variant="body1">
-              你可以执行单张图片即时评估, 也可以通过 SSE 流式反馈观察批量任务的推进过程。
+              支持单张图片即时评估, 也可以通过 SSE 流式反馈观察批量任务的推进过程。
             </Typography>
           </Stack>
         </CardContent>

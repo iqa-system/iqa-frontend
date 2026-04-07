@@ -29,6 +29,10 @@ export default defineConfig({
             return 'app-vendor'
           }
 
+          if (id.includes('xlsx')) {
+            return 'xlsx-vendor'
+          }
+
           return 'vendor'
         },
       },
