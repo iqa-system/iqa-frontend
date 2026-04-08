@@ -1,5 +1,6 @@
 import { Box, Chip, Stack, Typography } from '@mui/material'
 import StarRoundedIcon from '@mui/icons-material/StarRounded'
+import { alpha } from '@mui/material/styles'
 
 import type { DistortionProb } from '@/types/api'
 import { getDistortionDisplayItems } from '@/utils/constants'
@@ -37,16 +38,20 @@ function DistortionList({
       {items.map(item => (
         <Box
           key={item.key}
-          sx={{
+          sx={theme => ({
             alignItems: 'center',
-            bgcolor: item.isPrimary ? 'rgba(19, 111, 99, 0.10)' : 'rgba(15, 23, 42, 0.04)',
-            border: item.isPrimary ? '1px solid rgba(19, 111, 99, 0.22)' : '1px solid transparent',
+            bgcolor: item.isPrimary
+              ? alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.2 : 0.1)
+              : alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.12 : 0.04),
+            border: item.isPrimary
+              ? `1px solid ${alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.34 : 0.22)}`
+              : '1px solid transparent',
             borderRadius: 2.5,
             display: 'flex',
             justifyContent: 'space-between',
             px: 1.5,
             py: 1.25,
-          }}
+          })}
         >
           <Stack direction="row" spacing={1} sx={{ alignItems: 'center', minWidth: 0 }}>
             {item.isPrimary ? <StarRoundedIcon color="primary" sx={{ fontSize: 16 }} /> : null}

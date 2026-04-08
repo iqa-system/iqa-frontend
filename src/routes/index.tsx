@@ -8,6 +8,7 @@ import AssessmentPage from '@/pages/Assessment/Assessment'
 import HistoryPage from '@/pages/History/History'
 import NotFoundPage from '@/pages/NotFound/NotFound'
 import ProfilePage from '@/pages/Profile/Profile'
+import SettingsPage from '@/pages/Settings/Settings'
 
 export const router = createBrowserRouter([
   {
@@ -40,6 +41,10 @@ export const router = createBrowserRouter([
           {
             path: 'profile',
             element: <ProfilePage />,
+          },
+          {
+            path: 'settings',
+            element: <SettingsPage />,
           },
         ],
       },

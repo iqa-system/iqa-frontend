@@ -1,6 +1,7 @@
 import type { ErrorInfo, ReactNode } from 'react'
 import { Component } from 'react'
 import { Box, Button, Card, CardContent, Stack, Typography } from '@mui/material'
+import { alpha } from '@mui/material/styles'
 
 interface ErrorBoundaryProps {
   children: ReactNode
@@ -53,11 +54,11 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
               </Typography>
               {this.state.error?.message ? (
                 <Box
-                  sx={{
-                    bgcolor: 'rgba(15, 23, 42, 0.04)',
+                  sx={theme => ({
+                    bgcolor: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.12 : 0.04),
                     borderRadius: 2,
                     p: 2,
-                  }}
+                  })}
                 >
                   <Typography variant="body2">{this.state.error.message}</Typography>
                 </Box>

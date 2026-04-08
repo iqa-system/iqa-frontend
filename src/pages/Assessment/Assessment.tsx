@@ -48,11 +48,13 @@ function ResultCard({ result }: ResultCardProps) {
 
   return (
     <Card
-      sx={{
+      sx={theme => ({
         background:
-          'linear-gradient(180deg, rgba(255,255,255,0.95) 0%, rgba(248,250,252,0.92) 100%)',
+          theme.palette.mode === 'dark'
+            ? 'linear-gradient(180deg, rgba(20,28,38,0.94) 0%, rgba(15,23,32,0.92) 100%)'
+            : 'linear-gradient(180deg, rgba(255,255,255,0.95) 0%, rgba(248,250,252,0.92) 100%)',
         height: '100%',
-      }}
+      })}
     >
       <CardContent>
         <Stack spacing={2}>
@@ -70,11 +72,11 @@ function ResultCard({ result }: ResultCardProps) {
             }}
           >
             <Box
-              sx={{
-                bgcolor: alpha('#136f63', 0.08),
+              sx={theme => ({
+                bgcolor: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.18 : 0.08),
                 borderRadius: 1,
                 p: 2,
-              }}
+              })}
             >
               <Typography color="text.secondary" variant="caption">
                 质量分数
@@ -85,11 +87,11 @@ function ResultCard({ result }: ResultCardProps) {
               </Typography>
             </Box>
             <Box
-              sx={{
-                bgcolor: alpha('#ff7a59', 0.1),
+              sx={theme => ({
+                bgcolor: alpha(theme.palette.secondary.main, theme.palette.mode === 'dark' ? 0.2 : 0.1),
                 borderRadius: 1,
                 p: 2,
-              }}
+              })}
             >
                 <Typography color="text.secondary" variant="caption">
                   场景分类
@@ -286,13 +288,15 @@ function AssessmentPage() {
   return (
     <Stack spacing={3.5}>
       <Card
-        sx={{
+        sx={theme => ({
           background:
-            'linear-gradient(135deg, rgba(19,111,99,0.96) 0%, rgba(255,122,89,0.92) 100%)',
+            theme.palette.mode === 'dark'
+              ? `linear-gradient(135deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 48%, ${theme.palette.secondary.main} 100%)`
+              : `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
           color: 'white',
           overflow: 'hidden',
           position: 'relative',
-        }}
+        })}
       >
         <CardContent sx={{ p: 4 }}>
           <Box
@@ -389,18 +393,18 @@ function AssessmentPage() {
                       <Stack spacing={2}>
                         <Typography variant="h5">图片预览</Typography>
                         <Box
-                          sx={{
+                          sx={theme => ({
                             alignItems: 'center',
                             background:
-                              'repeating-linear-gradient(135deg, rgba(15,23,42,0.03), rgba(15,23,42,0.03) 12px, rgba(15,23,42,0.06) 12px, rgba(15,23,42,0.06) 24px)',
-                            border: '1px dashed rgba(15, 23, 42, 0.12)',
+                              `repeating-linear-gradient(135deg, ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.12 : 0.03)}, ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.12 : 0.03)} 12px, ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.2 : 0.06)} 12px, ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.2 : 0.06)} 24px)`,
+                            border: `1px dashed ${theme.palette.mode === 'dark' ? 'rgba(148, 163, 184, 0.2)' : 'rgba(15, 23, 42, 0.12)'}`,
                             borderRadius: 4,
                             display: 'flex',
                             justifyContent: 'center',
                             minHeight: 320,
                             overflow: 'hidden',
                             p: 2,
-                          }}
+                          })}
                         >
                           {singlePreviewUrl ? (
                             <Box
@@ -520,8 +524,12 @@ function AssessmentPage() {
                                 key={item.url}
                                 onClick={() => openPreviewDialog(item.url, item.name)}
                                 sx={{
-                                  backgroundColor: 'rgba(255, 255, 255, 0.7)',
-                                  border: '1px solid rgba(15, 23, 42, 0.08)',
+                                  backgroundColor: theme => (
+                                    theme.palette.mode === 'dark'
+                                      ? 'rgba(15, 23, 32, 0.72)'
+                                      : 'rgba(255, 255, 255, 0.7)'
+                                  ),
+                                  border: theme => `1px solid ${theme.palette.divider}`,
                                   cursor: 'zoom-in',
                                   overflow: 'hidden',
                                   borderRadius: 1,
@@ -543,14 +551,14 @@ function AssessmentPage() {
                           </ImageList>
                         ) : (
                           <Box
-                            sx={{
+                            sx={theme => ({
                               alignItems: 'center',
-                              border: '1px dashed rgba(15, 23, 42, 0.12)',
+                              border: `1px dashed ${theme.palette.mode === 'dark' ? 'rgba(148, 163, 184, 0.2)' : 'rgba(15, 23, 42, 0.12)'}`,
                               borderRadius: 4,
                               display: 'flex',
                               justifyContent: 'center',
                               minHeight: 260,
-                            }}
+                            })}
                           >
                             <Typography color="text.secondary" variant="body2">
                               选择图片后将在这里显示缩略图列表。

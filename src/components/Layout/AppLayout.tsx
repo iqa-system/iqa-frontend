@@ -19,7 +19,9 @@ import AssessmentOutlinedIcon from '@mui/icons-material/AssessmentOutlined'
 import HistoryOutlinedIcon from '@mui/icons-material/HistoryOutlined'
 import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded'
 import PersonOutlineRoundedIcon from '@mui/icons-material/PersonOutlineRounded'
+import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded'
 import TuneRoundedIcon from '@mui/icons-material/TuneRounded'
+import { alpha } from '@mui/material/styles'
 import { Link as RouterLink, Outlet, useLocation, useNavigate } from 'react-router'
 
 import LoadingScreen from '@/components/LoadingScreen'
@@ -44,6 +46,11 @@ const navigationItems = [
     icon: <PersonOutlineRoundedIcon />,
     label: '个人信息',
     to: '/profile',
+  },
+  {
+    icon: <SettingsRoundedIcon />,
+    label: '配置',
+    to: '/settings',
   },
 ]
 
@@ -125,12 +132,16 @@ function AppLayout() {
         color="transparent"
         elevation={0}
         position="fixed"
-        sx={{
+        sx={theme => ({
           backdropFilter: 'blur(20px)',
-          borderBottom: '1px solid rgba(15, 23, 42, 0.08)',
+          backgroundColor:
+            theme.palette.mode === 'dark'
+              ? alpha(theme.palette.background.paper, 0.82)
+              : alpha(theme.palette.background.paper, 0.74),
+          borderBottom: `1px solid ${theme.palette.divider}`,
           ml: `${drawerWidth}px`,
           width: `calc(100% - ${drawerWidth}px)`,
-        }}
+        })}
       >
         <Toolbar sx={{ gap: 2, minHeight: 80 }}>
           <Stack spacing={0.25} sx={{ flexGrow: 1 }}>
@@ -159,27 +170,29 @@ function AppLayout() {
         sx={{
           flexShrink: 0,
           width: drawerWidth,
-          '& .MuiDrawer-paper': {
-            borderRight: '1px solid rgba(15, 23, 42, 0.08)',
+          '& .MuiDrawer-paper': theme => ({
+            borderRight: `1px solid ${theme.palette.divider}`,
             boxSizing: 'border-box',
             px: 2.5,
             py: 3,
             width: drawerWidth,
-          },
+          }),
         }}
         variant="permanent"
       >
         <Stack spacing={3} sx={{ height: '100%' }}>
           <Box
-            sx={{
+            sx={theme => ({
               background:
-                'linear-gradient(140deg, rgba(19, 111, 99, 0.96), rgba(255, 122, 89, 0.92))',
+                theme.palette.mode === 'dark'
+                  ? `linear-gradient(140deg, ${theme.palette.primary.dark}, ${theme.palette.primary.main} 55%, ${theme.palette.secondary.main})`
+                  : `linear-gradient(140deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
               borderRadius: 1,
               color: 'white',
               overflow: 'hidden',
               p: 3,
               position: 'relative',
-            }}
+            })}
           >
             <Box
               sx={{
@@ -219,10 +232,32 @@ function AppLayout() {
                 <ListItemButton
                   component={RouterLink}
                   selected={location.pathname === item.to}
-                  sx={{
+                  sx={theme => ({
+                    '& .MuiListItemIcon-root': {
+                      color: 'inherit',
+                    },
+                    '&.Mui-selected': {
+                      backgroundColor: alpha(
+                        theme.palette.primary.main,
+                        theme.palette.mode === 'dark' ? 0.22 : 0.12,
+                      ),
+                      color: theme.palette.primary.main,
+                    },
+                    '&.Mui-selected:hover': {
+                      backgroundColor: alpha(
+                        theme.palette.primary.main,
+                        theme.palette.mode === 'dark' ? 0.28 : 0.16,
+                      ),
+                    },
+                    '&:hover': {
+                      backgroundColor: alpha(
+                        theme.palette.primary.main,
+                        theme.palette.mode === 'dark' ? 0.14 : 0.07,
+                      ),
+                    },
                     borderRadius: 3,
                     minHeight: 56,
-                  }}
+                  })}
                   to={item.to}
                 >
                   <ListItemIcon sx={{ minWidth: 42 }}>{item.icon}</ListItemIcon>

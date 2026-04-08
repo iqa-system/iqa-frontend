@@ -1,5 +1,4 @@
 :root {
-  color-scheme: light;
   font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
@@ -11,14 +10,6 @@ html,
 body,
 #root {
   min-height: 100%;
-}
-
-body {
-  margin: 0;
-  background:
-    radial-gradient(circle at top left, rgba(255, 122, 89, 0.2) 0%, transparent 28%),
-    radial-gradient(circle at top right, rgba(19, 111, 99, 0.16) 0%, transparent 26%),
-    linear-gradient(180deg, #fffaf3 0%, #f5ede2 100%);
 }
 
 a {
@@ -34,13 +25,4 @@ img {
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;
-}
-
-::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.04);
-}
-
-::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background: rgba(82, 96, 114, 0.35);
 }

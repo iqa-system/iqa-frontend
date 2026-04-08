@@ -11,6 +11,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
+import { alpha } from '@mui/material/styles'
 import PersonAddAltRoundedIcon from '@mui/icons-material/PersonAddAltRounded'
 import { Link as RouterLink, useNavigate } from 'react-router'
 
@@ -136,14 +137,17 @@ function RegisterPage() {
       }}
     >
       <Card
-        sx={{
+        sx={theme => ({
           backdropFilter: 'blur(18px)',
-          backgroundColor: 'rgba(255, 255, 255, 0.78)',
+          backgroundColor: alpha(
+            theme.palette.background.paper,
+            theme.palette.mode === 'dark' ? 0.94 : 0.78,
+          ),
           maxWidth: 1040,
           overflow: 'hidden',
           WebkitBackdropFilter: 'blur(18px)',
           width: '100%',
-        }}
+        })}
       >
         <Box sx={{ display: 'grid', gridTemplateColumns: '0.85fr 1.15fr' }}>
           <CardContent sx={{ p: 6 }}>
@@ -226,11 +230,13 @@ function RegisterPage() {
           </CardContent>
 
           <Box
-            sx={{
+            sx={theme => ({
               background:
-                'linear-gradient(180deg, rgba(255,245,238,0.92) 0%, rgba(245,255,251,0.95) 100%)',
+                theme.palette.mode === 'dark'
+                  ? `linear-gradient(180deg, ${alpha(theme.palette.secondary.main, 0.12)} 0%, ${alpha(theme.palette.primary.main, 0.16)} 100%)`
+                  : `linear-gradient(180deg, ${alpha(theme.palette.secondary.light, 0.38)} 0%, ${alpha(theme.palette.primary.light, 0.22)} 100%)`,
               p: 6,
-            }}
+            })}
           >
             <Stack spacing={2.5}>
               <Typography color="primary.main" variant="overline">

@@ -246,11 +246,11 @@ function HistoryPage() {
             {records.length ? (
               <>
                 <Box
-                  sx={{
-                    borderBottom: '1px solid rgba(15, 23, 42, 0.08)',
+                  sx={theme => ({
+                    borderBottom: `1px solid ${theme.palette.divider}`,
                     px: 3,
                     py: 2.5,
-                  }}
+                  })}
                 >
                   <Stack
                     direction={{ md: 'row', xs: 'column' }}
@@ -348,10 +348,13 @@ function HistoryPage() {
                                 />
                               ) : (
                                 <Box
-                                  sx={{
+                                  sx={theme => ({
                                     alignItems: 'center',
-                                    bgcolor: 'rgba(15, 23, 42, 0.04)',
-                                    border: '1px dashed rgba(15, 23, 42, 0.12)',
+                                    bgcolor:
+                                      theme.palette.mode === 'dark'
+                                        ? 'rgba(148, 163, 184, 0.08)'
+                                        : 'rgba(15, 23, 42, 0.04)',
+                                    border: `1px dashed ${theme.palette.mode === 'dark' ? 'rgba(148, 163, 184, 0.18)' : 'rgba(15, 23, 42, 0.12)'}`,
                                     borderRadius: 2,
                                     display: 'flex',
                                     height: 60,
@@ -359,7 +362,7 @@ function HistoryPage() {
                                     px: 1,
                                     textAlign: 'center',
                                     width: 60,
-                                  }}
+                                  })}
                                 >
                                   <Typography color="text.secondary" sx={{ lineHeight: 1.2 }} variant="caption">
                                     {isImageLoading ? '加载中' : isImageFailed ? '加载失败' : '暂无图片'}

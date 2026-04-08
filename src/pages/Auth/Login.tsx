@@ -11,6 +11,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
+import { alpha } from '@mui/material/styles'
 import LoginRoundedIcon from '@mui/icons-material/LoginRounded'
 import { Link as RouterLink, useLocation, useNavigate } from 'react-router'
 
@@ -127,23 +128,28 @@ function LoginPage() {
       }}
     >
       <Card
-        sx={{
+        sx={theme => ({
           backdropFilter: 'blur(18px)',
-          backgroundColor: 'rgba(255, 255, 255, 0.78)',
+          backgroundColor: alpha(
+            theme.palette.background.paper,
+            theme.palette.mode === 'dark' ? 0.94 : 0.78,
+          ),
           maxWidth: 1040,
           overflow: 'hidden',
           WebkitBackdropFilter: 'blur(18px)',
           width: '100%',
-        }}
+        })}
       >
         <Box sx={{ display: 'grid', gridTemplateColumns: '1.15fr 0.85fr' }}>
           <Box
-            sx={{
+            sx={theme => ({
               background:
-                'linear-gradient(160deg, rgba(19,111,99,0.96) 0%, rgba(255,122,89,0.92) 100%)',
+                theme.palette.mode === 'dark'
+                  ? `linear-gradient(160deg, ${theme.palette.primary.dark} 0%, ${theme.palette.primary.main} 52%, ${theme.palette.secondary.main} 100%)`
+                  : `linear-gradient(160deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
               color: 'white',
               p: 6,
-            }}
+            })}
           >
             <Stack spacing={3}>
               <Typography variant="overline">IQA Workspace</Typography>
