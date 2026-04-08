@@ -126,7 +126,16 @@ function LoginPage() {
         p: 3,
       }}
     >
-      <Card sx={{ maxWidth: 1040, overflow: 'hidden', width: '100%' }}>
+      <Card
+        sx={{
+          backdropFilter: 'blur(18px)',
+          backgroundColor: 'rgba(255, 255, 255, 0.78)',
+          maxWidth: 1040,
+          overflow: 'hidden',
+          WebkitBackdropFilter: 'blur(18px)',
+          width: '100%',
+        }}
+      >
         <Box sx={{ display: 'grid', gridTemplateColumns: '1.15fr 0.85fr' }}>
           <Box
             sx={{

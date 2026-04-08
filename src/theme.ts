@@ -62,7 +62,6 @@ export const theme = createTheme(
       MuiCard: {
         styleOverrides: {
           root: {
-            backdropFilter: 'blur(16px)',
             border: '1px solid rgba(255, 255, 255, 0.42)',
             boxShadow: '0 22px 60px rgba(20, 38, 52, 0.08)',
           },

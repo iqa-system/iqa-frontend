@@ -17,5 +17,5 @@ createRoot(document.getElementById('root')!).render(
         <GlobalSnackbar />
       </ErrorBoundary>
     </ThemeProvider>
-  </StrictMode>,
+  </StrictMode>
 )
