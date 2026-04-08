@@ -23,12 +23,12 @@ import {
 
 import DistortionList from '@/components/DistortionList'
 import LoadingScreen from '@/components/LoadingScreen'
-import { getAssessmentHistory } from '@/services/assessment'
+import { getAssessmentHistory, getHistoryImageBlob } from '@/services/assessment'
 import { useSnackbarStore } from '@/stores/snackbarStore'
 import type { AssessRecord } from '@/types/api'
 import { extractErrorMessage } from '@/utils/api-request'
 import { getSceneLabel } from '@/utils/constants'
-import { formatDateTime, getQualityScoreDisplay, normalizeBase64Image } from '@/utils/format'
+import { formatDateTime, getQualityScoreDisplay } from '@/utils/format'
 import { exportHistoryRecords, type HistoryExportFormat } from '@/utils/history-export'
 
 function HistoryPage() {
@@ -40,12 +40,16 @@ function HistoryPage() {
   const [total, setTotal] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const [selectedRecordIds, setSelectedRecordIds] = useState<number[]>([])
+  const [recordImageUrls, setRecordImageUrls] = useState<Record<number, string>>({})
+  const [loadingImageRecordIds, setLoadingImageRecordIds] = useState<number[]>([])
+  const [failedImageRecordIds, setFailedImageRecordIds] = useState<number[]>([])
   const [previewImage, setPreviewImage] = useState('')
   const [exportingFormat, setExportingFormat] = useState<HistoryExportFormat | null>(null)
 
   useEffect(() => {
     let active = true
     setSelectedRecordIds([])
+    setPreviewImage('')
 
     void getAssessmentHistory({ page, pageSize })
       .then(data => {
@@ -72,11 +76,75 @@ function HistoryPage() {
     }
   }, [page, pageSize, showError])
 
+  useEffect(() => {
+    let active = true
+    const objectUrls: string[] = []
+
+    setRecordImageUrls({})
+    setFailedImageRecordIds([])
+
+    if (!records.length) {
+      setLoadingImageRecordIds([])
+
+      return () => {
+        active = false
+      }
+    }
+
+    setLoadingImageRecordIds(records.map(record => record.id))
+
+    records.forEach(record => {
+      void getHistoryImageBlob(record)
+        .then(blob => {
+          if (!active) {
+            return
+          }
+
+          const objectUrl = URL.createObjectURL(blob)
+          objectUrls.push(objectUrl)
+
+          setRecordImageUrls(current => ({
+            ...current,
+            [record.id]: objectUrl,
+          }))
+        })
+        .catch(() => {
+          if (active) {
+            setFailedImageRecordIds(currentIds => (
+              currentIds.includes(record.id) ? currentIds : [...currentIds, record.id]
+            ))
+          }
+        })
+        .finally(() => {
+          if (active) {
+            setLoadingImageRecordIds(currentIds => currentIds.filter(id => id !== record.id))
+          }
+        })
+    })
+
+    return () => {
+      active = false
+      objectUrls.forEach(objectUrl => URL.revokeObjectURL(objectUrl))
+    }
+  }, [records])
+
   const selectedRecordIdSet = new Set(selectedRecordIds)
+  const loadingImageRecordIdSet = new Set(loadingImageRecordIds)
+  const failedImageRecordIdSet = new Set(failedImageRecordIds)
   const selectedRecords = records.filter(record => selectedRecordIdSet.has(record.id))
   const selectedCount = selectedRecords.length
   const allRecordsSelected = records.length > 0 && selectedCount === records.length
   const hasPartialSelection = selectedCount > 0 && selectedCount < records.length
+
+  const handleOpenPreview = (recordId: number) => {
+    const imageUrl = recordImageUrls[recordId]
+
+    if (!imageUrl) {
+      return
+    }
+
+    setPreviewImage(imageUrl)
+  }
 
   const handleSelectAllRecords = (checked: boolean) => {
     setSelectedRecordIds(checked ? records.map(record => record.id) : [])
@@ -195,7 +263,10 @@ function HistoryPage() {
                     </TableHead>
                     <TableBody>
                       {records.map(record => {
+                        const imageUrl = recordImageUrls[record.id]
                         const isSelected = selectedRecordIdSet.has(record.id)
+                        const isImageLoading = loadingImageRecordIdSet.has(record.id)
+                        const isImageFailed = failedImageRecordIdSet.has(record.id)
                         const qualityDisplay = getQualityScoreDisplay(record.qualityScore)
 
                         return (
@@ -209,19 +280,40 @@ function HistoryPage() {
                             </TableCell>
                             <TableCell>{record.id}</TableCell>
                             <TableCell>
-                              <Box
-                                alt={record.filename}
-                                component="img"
-                                onClick={() => setPreviewImage(normalizeBase64Image(record.base64))}
-                                src={normalizeBase64Image(record.base64)}
-                                sx={{
-                                  borderRadius: 2,
-                                  cursor: 'pointer',
-                                  height: 60,
-                                  objectFit: 'cover',
-                                  width: 60,
-                                }}
-                              />
+                              {imageUrl ? (
+                                <Box
+                                  alt={record.filename}
+                                  component="img"
+                                  onClick={() => handleOpenPreview(record.id)}
+                                  src={imageUrl}
+                                  sx={{
+                                    borderRadius: 2,
+                                    cursor: 'pointer',
+                                    height: 60,
+                                    objectFit: 'cover',
+                                    width: 60,
+                                  }}
+                                />
+                              ) : (
+                                <Box
+                                  sx={{
+                                    alignItems: 'center',
+                                    bgcolor: 'rgba(15, 23, 42, 0.04)',
+                                    border: '1px dashed rgba(15, 23, 42, 0.12)',
+                                    borderRadius: 2,
+                                    display: 'flex',
+                                    height: 60,
+                                    justifyContent: 'center',
+                                    px: 1,
+                                    textAlign: 'center',
+                                    width: 60,
+                                  }}
+                                >
+                                  <Typography color="text.secondary" sx={{ lineHeight: 1.2 }} variant="caption">
+                                    {isImageLoading ? '加载中' : isImageFailed ? '加载失败' : '暂无图片'}
+                                  </Typography>
+                                </Box>
+                              )}
                             </TableCell>
                             <TableCell>{record.filename}</TableCell>
                             <TableCell>{formatDateTime(record.assessTime)}</TableCell>

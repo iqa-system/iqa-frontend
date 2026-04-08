@@ -34,7 +34,8 @@ export interface AssessRecord {
   id: number
   userId: number
   filename: string
-  base64: string
+  fileEntryId?: number | null
+  imageURL?: string | null
   assessTime: string
   qualityScore: number
   scene: string | number

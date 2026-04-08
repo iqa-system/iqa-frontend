@@ -6,6 +6,7 @@ import apiRequest, {
 } from '@/utils/api-request'
 import { useAuthStore } from '@/stores/authStore'
 import type {
+  AssessRecord,
   BatchAssessmentCompletedPayload,
   BatchAssessmentErrorPayload,
   BatchAssessmentEvent,
@@ -198,4 +199,30 @@ export async function getAssessmentHistory(query: HistoryQuery) {
   })
 
   return unwrapResponse<PageAssessRecord>(response)
+}
+
+function resolveHistoryImagePath(record: Pick<AssessRecord, 'fileEntryId' | 'imageURL'>) {
+  const imageURL = record.imageURL?.trim()
+
+  if (imageURL) {
+    if (/^https?:\/\//.test(imageURL) || imageURL.startsWith('/')) {
+      return imageURL
+    }
+
+    return `/${imageURL}`
+  }
+
+  if (record.fileEntryId) {
+    return `/resource/image/${record.fileEntryId}`
+  }
+
+  throw new Error('历史记录缺少可用的图片资源标识。')
+}
+
+export async function getHistoryImageBlob(record: Pick<AssessRecord, 'fileEntryId' | 'imageURL'>) {
+  const response = await apiRequest.get(resolveHistoryImagePath(record), {
+    responseType: 'blob',
+  })
+
+  return response.data as Blob
 }

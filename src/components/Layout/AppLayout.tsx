@@ -228,7 +228,7 @@ function AppLayout() {
                   <ListItemIcon sx={{ minWidth: 42 }}>{item.icon}</ListItemIcon>
                   <ListItemText
                     primary={item.label}
-                    primaryTypographyProps={{ fontWeight: 600 }}
+                    slotProps={{ primary: { fontWeight: 600 } }}
                   />
                 </ListItemButton>
               </ListItem>
