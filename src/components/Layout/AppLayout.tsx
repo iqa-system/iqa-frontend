@@ -27,6 +27,7 @@ import { Link as RouterLink, Outlet, useLocation, useNavigate } from 'react-rout
 import LoadingScreen from '@/components/LoadingScreen'
 import { useAuthStore } from '@/stores/authStore'
 import { useSnackbarStore } from '@/stores/snackbarStore'
+import { getUserRoleLabel } from '@/utils/constants'
 import { refreshSessionAndUser } from '@/utils/session'
 
 const drawerWidth = 280
@@ -150,12 +151,21 @@ function AppLayout() {
               上传图像, 获取单张与批量质量分析结果。
             </Typography>
           </Stack>
-          <Chip
-            color="primary"
-            icon={<TuneRoundedIcon />}
-            label={user ? `当前用户: ${user.username}` : '当前用户'}
-            variant="outlined"
-          />
+          <Stack direction="row" spacing={1}>
+            <Chip
+              color="primary"
+              icon={<TuneRoundedIcon />}
+              label={user ? `当前用户: ${user.username}` : '当前用户'}
+              variant="outlined"
+            />
+            {user?.role ? (
+              <Chip
+                color={user.role === 'ADMIN' ? 'secondary' : 'default'}
+                label={getUserRoleLabel(user.role)}
+                variant="outlined"
+              />
+            ) : null}
+          </Stack>
           <Button
             onClick={handleLogout}
             startIcon={<LogoutRoundedIcon />}

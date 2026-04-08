@@ -1,4 +1,4 @@
-import type { DistortionProb } from '@/types/api'
+import type { DistortionProb, UserRole } from '@/types/api'
 
 export const sceneLabelMap: Record<string, string> = {
   '0': '动物',
@@ -26,6 +26,11 @@ export const distLabelMap: Record<string, string> = {
   '10': '其他失真',
 }
 
+export const userRoleLabelMap: Record<UserRole, string> = {
+  USER: '普通用户',
+  ADMIN: '管理员',
+}
+
 export function getSceneLabel(scene: string | number | null | undefined) {
   if (scene === null || scene === undefined) {
     return '未知场景'
@@ -40,6 +45,14 @@ export function getDistortionLabel(distortion: string | number | null | undefine
   }
 
   return distLabelMap[String(distortion)] ?? `失真 ${distortion}`
+}
+
+export function getUserRoleLabel(role: UserRole | null | undefined) {
+  if (!role) {
+    return '未知角色'
+  }
+
+  return userRoleLabelMap[role] ?? role
 }
 
 export interface DistortionDisplayItem {

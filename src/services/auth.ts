@@ -1,5 +1,5 @@
 import apiRequest, { unwrapResponse } from '@/utils/api-request'
-import type { AuthCredentials, AuthTokenResponse } from '@/types/api'
+import type { AuthTokenResponse, LoginPayload, RegisterPayload } from '@/types/api'
 
 function buildFormData<T extends object>(values: T) {
   const params = new URLSearchParams()
@@ -13,14 +13,14 @@ function buildFormData<T extends object>(values: T) {
   return params
 }
 
-export async function login(credentials: AuthCredentials) {
+export async function login(credentials: LoginPayload) {
   const response = await apiRequest.post('/auth/login', buildFormData(credentials))
   return unwrapResponse<AuthTokenResponse>(response)
 }
 
-export async function register(credentials: AuthCredentials) {
+export async function register(credentials: RegisterPayload) {
   const response = await apiRequest.post('/auth/sign-up', buildFormData(credentials))
-  return unwrapResponse<AuthTokenResponse>(response)
+  return unwrapResponse<string>(response)
 }
 
 export async function refreshAccessToken(accessToken: string) {

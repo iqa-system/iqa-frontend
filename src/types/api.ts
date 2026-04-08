@@ -12,9 +12,13 @@ export interface AuthTokenResponse {
   expiresIn: number
 }
 
+export type UserRole = 'USER' | 'ADMIN'
+
 export interface UserInfo {
   id: number
   username: string
+  email: string
+  role: UserRole
   registerTime: string
 }
 
@@ -55,13 +59,18 @@ export interface HistoryQuery {
   pageSize: number
 }
 
-export interface AuthCredentials {
+export interface LoginPayload {
   username: string
   password: string
 }
 
+export interface RegisterPayload extends LoginPayload {
+  email: string
+}
+
 export interface UpdateUserPayload {
   username?: string
+  email?: string
   oldPassword?: string
   newPassword?: string
 }

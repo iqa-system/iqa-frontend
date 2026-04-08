@@ -19,10 +19,12 @@ import { register as registerService } from '@/services/auth'
 import { useAuthStore } from '@/stores/authStore'
 import { useSnackbarStore } from '@/stores/snackbarStore'
 import { extractErrorMessage } from '@/utils/api-request'
-import { applyTokenAndLoadUser, refreshSessionAndUser } from '@/utils/session'
+import { refreshSessionAndUser } from '@/utils/session'
+import { EMAIL_MAX_LENGTH, isValidEmail } from '@/utils/validation'
 
 interface RegisterErrors {
   confirmPassword?: string
+  email?: string
   password?: string
   username?: string
 }
@@ -34,6 +36,7 @@ function RegisterPage() {
   const showSuccess = useSnackbarStore(state => state.showSuccess)
   const [form, setForm] = useState({
     username: '',
+    email: '',
     password: '',
     confirmPassword: '',
   })
@@ -87,6 +90,16 @@ function RegisterPage() {
       nextErrors.username = '用户名长度需要在 3 到 50 个字符之间。'
     }
 
+    const trimmedEmail = form.email.trim()
+
+    if (!trimmedEmail) {
+      nextErrors.email = '请输入邮箱。'
+    } else if (trimmedEmail.length > EMAIL_MAX_LENGTH) {
+      nextErrors.email = `邮箱长度不能超过 ${EMAIL_MAX_LENGTH} 个字符。`
+    } else if (!isValidEmail(trimmedEmail)) {
+      nextErrors.email = '请输入有效的邮箱地址。'
+    }
+
     if (!form.password) {
       nextErrors.password = '请输入密码。'
     } else if (form.password.length < 6) {
@@ -111,14 +124,13 @@ function RegisterPage() {
     setIsSubmitting(true)
 
     try {
-      const tokenResponse = await registerService({
+      const message = await registerService({
         username: form.username.trim(),
+        email: form.email.trim(),
         password: form.password,
       })
-
-      await applyTokenAndLoadUser(tokenResponse)
-      showSuccess('注册成功, 已自动登录。')
-      await navigate('/assessment', { replace: true })
+      showSuccess(message || '注册成功，请登录。')
+      await navigate('/login', { replace: true })
     } catch (error) {
       showError(extractErrorMessage(error, '注册失败, 请稍后重试。'))
     } finally {
@@ -175,6 +187,18 @@ function RegisterPage() {
                   setErrors(current => ({ ...current, username: undefined }))
                 }}
                 value={form.username}
+              />
+              <TextField
+                autoComplete="email"
+                error={Boolean(errors.email)}
+                helperText={errors.email}
+                label="邮箱"
+                onChange={event => {
+                  setForm(current => ({ ...current, email: event.target.value }))
+                  setErrors(current => ({ ...current, email: undefined }))
+                }}
+                type="email"
+                value={form.email}
               />
               <TextField
                 autoComplete="new-password"

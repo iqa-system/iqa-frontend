@@ -6,6 +6,7 @@ import {
   Button,
   Card,
   CardContent,
+  Chip,
   Divider,
   Stack,
   TextField,
@@ -19,10 +20,13 @@ import { getUserInfo, updateUserInfo } from '@/services/user'
 import { useAuthStore } from '@/stores/authStore'
 import { useSnackbarStore } from '@/stores/snackbarStore'
 import { extractErrorMessage } from '@/utils/api-request'
+import { getUserRoleLabel } from '@/utils/constants'
 import { formatDateTime } from '@/utils/format'
+import { EMAIL_MAX_LENGTH, isValidEmail } from '@/utils/validation'
 
 interface ProfileErrors {
   confirmPassword?: string
+  email?: string
   newPassword?: string
   oldPassword?: string
   username?: string
@@ -39,6 +43,7 @@ function ProfilePage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [form, setForm] = useState({
     username: '',
+    email: '',
     oldPassword: '',
     newPassword: '',
     confirmPassword: '',
@@ -58,6 +63,7 @@ function ProfilePage() {
         setForm(current => ({
           ...current,
           username: user.username,
+          email: user.email,
         }))
       })
       .catch(error => {
@@ -79,12 +85,21 @@ function ProfilePage() {
   const validateForm = () => {
     const nextErrors: ProfileErrors = {}
     const trimmedUsername = form.username.trim()
+    const trimmedEmail = form.email.trim()
     const hasPasswordChange = Boolean(form.oldPassword || form.newPassword || form.confirmPassword)
 
     if (!trimmedUsername) {
       nextErrors.username = '请输入用户名。'
     } else if (trimmedUsername.length < 3 || trimmedUsername.length > 50) {
       nextErrors.username = '用户名长度需要在 3 到 50 个字符之间。'
+    }
+
+    if (!trimmedEmail) {
+      nextErrors.email = '请输入邮箱。'
+    } else if (trimmedEmail.length > EMAIL_MAX_LENGTH) {
+      nextErrors.email = `邮箱长度不能超过 ${EMAIL_MAX_LENGTH} 个字符。`
+    } else if (!isValidEmail(trimmedEmail)) {
+      nextErrors.email = '请输入有效的邮箱地址。'
     }
 
     if (hasPasswordChange) {
@@ -121,13 +136,15 @@ function ProfilePage() {
     }
 
     const trimmedUsername = form.username.trim()
+    const trimmedEmail = form.email.trim()
     const payload = {
       username: trimmedUsername !== authUser.username ? trimmedUsername : undefined,
+      email: trimmedEmail !== authUser.email ? trimmedEmail : undefined,
       oldPassword: form.oldPassword || undefined,
       newPassword: form.newPassword || undefined,
     }
 
-    if (!payload.username && !payload.newPassword) {
+    if (!payload.username && !payload.email && !payload.newPassword) {
       showInfo('未检测到需要提交的修改。')
       return
     }
@@ -141,6 +158,7 @@ function ProfilePage() {
       setUser(refreshedUser)
       setForm({
         username: refreshedUser.username,
+        email: refreshedUser.email,
         oldPassword: '',
         newPassword: '',
         confirmPassword: '',
@@ -173,7 +191,7 @@ function ProfilePage() {
             <Stack spacing={1}>
               <Typography variant="h4">个人信息</Typography>
               <Typography color="text.secondary" variant="body2">
-                查看当前账号信息, 并在同一页面中完成用户名或密码更新。
+                查看当前账号信息, 并在同一页面中完成用户名、邮箱或密码更新。
               </Typography>
             </Stack>
             <Button
@@ -208,9 +226,25 @@ function ProfilePage() {
                 {authUser?.username.slice(0, 1).toUpperCase() ?? 'U'}
               </Avatar>
               <Stack spacing={0.75} textAlign="center">
-                <Typography variant="h5">{authUser?.username ?? '--'}</Typography>
+                <Stack alignItems="center" direction="row" justifyContent="center" spacing={1}>
+                  <Typography variant="h5">{authUser?.username ?? '--'}</Typography>
+                  {authUser?.role ? (
+                    <Chip
+                      color={authUser.role === 'ADMIN' ? 'secondary' : 'primary'}
+                      label={getUserRoleLabel(authUser.role)}
+                      size="small"
+                      variant="outlined"
+                    />
+                  ) : null}
+                </Stack>
                 <Typography color="text.secondary" variant="body2">
                   用户 ID: {authUser?.id ?? '--'}
+                </Typography>
+                <Typography color="text.secondary" variant="body2">
+                  邮箱: {authUser?.email ?? '--'}
+                </Typography>
+                <Typography color="text.secondary" variant="body2">
+                  角色: {authUser?.role ? getUserRoleLabel(authUser.role) : '--'}
                 </Typography>
                 <Typography color="text.secondary" variant="body2">
                   注册时间: {formatDateTime(authUser?.registerTime)}
@@ -225,7 +259,7 @@ function ProfilePage() {
             <Stack spacing={3}>
               <Typography variant="h5">编辑资料</Typography>
               {!isEditing ? (
-                <Alert severity="info">点击右上角“编辑信息”后即可修改用户名或密码。</Alert>
+                <Alert severity="info">点击右上角“编辑信息”后即可修改用户名、邮箱或密码。</Alert>
               ) : null}
               <TextField
                 disabled={!isEditing}
@@ -237,6 +271,18 @@ function ProfilePage() {
                   setErrors(current => ({ ...current, username: undefined }))
                 }}
                 value={form.username}
+              />
+              <TextField
+                disabled={!isEditing}
+                error={Boolean(errors.email)}
+                helperText={errors.email}
+                label="邮箱"
+                onChange={event => {
+                  setForm(current => ({ ...current, email: event.target.value }))
+                  setErrors(current => ({ ...current, email: undefined }))
+                }}
+                type="email"
+                value={form.email}
               />
               <Divider />
               <Stack spacing={2}>
