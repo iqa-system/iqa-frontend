@@ -205,6 +205,11 @@ function LoginPage() {
                 type="password"
                 value={form.password}
               />
+              <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <Link component={RouterLink} to="/forgot-password" underline="hover">
+                  忘记密码？
+                </Link>
+              </Box>
 
               <Button
                 disabled={isSubmitting || isAutoLoggingIn}

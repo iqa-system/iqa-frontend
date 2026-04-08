@@ -1,6 +1,7 @@
 import { Navigate, createBrowserRouter } from 'react-router'
 
 import AppLayout from '@/components/Layout/AppLayout'
+import ForgotPasswordPage from '@/pages/Auth/ForgotPassword'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import LoginPage from '@/pages/Auth/Login'
 import RegisterPage from '@/pages/Auth/Register'
@@ -18,6 +19,10 @@ export const router = createBrowserRouter([
   {
     path: '/register',
     element: <RegisterPage />,
+  },
+  {
+    path: '/forgot-password',
+    element: <ForgotPasswordPage />,
   },
   {
     path: '/',

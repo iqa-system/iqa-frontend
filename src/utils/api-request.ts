@@ -11,7 +11,7 @@ declare module 'axios' {
 }
 
 const SUCCESS_CODES = new Set([0, 200])
-const AUTH_FREE_PATHS = new Set(['/login', '/register'])
+const AUTH_FREE_PATHS = new Set(['/login', '/register', '/forgot-password'])
 
 export const baseURL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() || 'http://localhost:8080'
 

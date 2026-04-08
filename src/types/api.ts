@@ -68,6 +68,16 @@ export interface RegisterPayload extends LoginPayload {
   email: string
 }
 
+export interface PasswordResetCodePayload {
+  email: string
+}
+
+export interface PasswordResetSubmitPayload {
+  email: string
+  code: string
+  newPassword: string
+}
+
 export interface UpdateUserPayload {
   username?: string
   email?: string
