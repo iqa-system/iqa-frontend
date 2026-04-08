@@ -202,7 +202,7 @@ function AppLayout() {
                   width: 52,
                 }}
               >
-                IQ
+                IQA
               </Avatar>
               <Stack spacing={0.5}>
                 <Typography variant="h6">智能评估工作台</Typography>

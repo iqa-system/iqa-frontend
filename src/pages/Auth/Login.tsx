@@ -53,7 +53,7 @@ function LoginPage() {
     void refreshSessionAndUser()
       .then(() => {
         if (active) {
-          showSuccess('自动登录成功。')
+          showSuccess('自动登录成功')
           void navigate('/assessment', { replace: true })
         }
       })
@@ -77,11 +77,11 @@ function LoginPage() {
     const nextErrors: LoginErrors = {}
 
     if (!form.username.trim()) {
-      nextErrors.username = '请输入用户名。'
+      nextErrors.username = '请输入用户名'
     }
 
     if (!form.password) {
-      nextErrors.password = '请输入密码。'
+      nextErrors.password = '请输入密码'
     }
 
     setErrors(nextErrors)
@@ -102,7 +102,7 @@ function LoginPage() {
       })
       console.log('tokenResponse = ', tokenResponse)
       await applyTokenAndLoadUser(tokenResponse)
-      showSuccess('登录成功。')
+      showSuccess('欢迎回来')
 
       const redirectTo = typeof location.state?.from?.pathname === 'string'
         ? location.state.from.pathname
@@ -110,7 +110,7 @@ function LoginPage() {
 
       await navigate(redirectTo, { replace: true })
     } catch (error) {
-      showError(extractErrorMessage(error, '登录失败, 请检查用户名和密码。'))
+      showError(extractErrorMessage(error, '登录失败, 请检查用户名和密码'))
     } finally {
       setIsSubmitting(false)
     }

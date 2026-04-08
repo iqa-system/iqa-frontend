@@ -9,7 +9,7 @@ function ProtectedRoute() {
   const location = useLocation()
 
   if (!isHydrated) {
-    return <LoadingScreen description="正在恢复本地登录信息。" title="准备会话" />
+    return <LoadingScreen description="正在恢复本地登录信息..." title="准备会话" />
   }
 
   if (!token) {

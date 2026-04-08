@@ -7,6 +7,7 @@ import {
   CardContent,
   Checkbox,
   Dialog,
+  DialogActions,
   DialogContent,
   DialogTitle,
   Paper,
@@ -23,7 +24,11 @@ import {
 
 import DistortionList from '@/components/DistortionList'
 import LoadingScreen from '@/components/LoadingScreen'
-import { getAssessmentHistory, getHistoryImageBlob } from '@/services/assessment'
+import {
+  deleteAssessmentHistory,
+  getAssessmentHistory,
+  getHistoryImageBlob,
+} from '@/services/assessment'
 import { useSnackbarStore } from '@/stores/snackbarStore'
 import type { AssessRecord } from '@/types/api'
 import { extractErrorMessage } from '@/utils/api-request'
@@ -45,11 +50,16 @@ function HistoryPage() {
   const [failedImageRecordIds, setFailedImageRecordIds] = useState<number[]>([])
   const [previewImage, setPreviewImage] = useState('')
   const [exportingFormat, setExportingFormat] = useState<HistoryExportFormat | null>(null)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [historyReloadKey, setHistoryReloadKey] = useState(0)
 
   useEffect(() => {
     let active = true
+    setIsLoading(true)
     setSelectedRecordIds([])
     setPreviewImage('')
+    setIsDeleteDialogOpen(false)
 
     void getAssessmentHistory({ page, pageSize })
       .then(data => {
@@ -74,7 +84,7 @@ function HistoryPage() {
     return () => {
       active = false
     }
-  }, [page, pageSize, showError])
+  }, [historyReloadKey, page, pageSize, showError])
 
   useEffect(() => {
     let active = true
@@ -135,6 +145,7 @@ function HistoryPage() {
   const selectedCount = selectedRecords.length
   const allRecordsSelected = records.length > 0 && selectedCount === records.length
   const hasPartialSelection = selectedCount > 0 && selectedCount < records.length
+  const isBatchActionBusy = exportingFormat !== null || isDeleting
 
   const handleOpenPreview = (recordId: number) => {
     const imageUrl = recordImageUrls[recordId]
@@ -172,6 +183,37 @@ function HistoryPage() {
       showError(extractErrorMessage(error, '历史记录导出失败。'))
     } finally {
       setExportingFormat(null)
+    }
+  }
+
+  const handleDeleteSelectedRecords = async () => {
+    if (!selectedRecordIds.length) {
+      return
+    }
+
+    setIsDeleting(true)
+
+    try {
+      const deletedCount = await deleteAssessmentHistory(selectedRecordIds)
+      const nextTotal = Math.max(total - deletedCount, 0)
+      const nextPage = Math.min(page, Math.max(1, Math.ceil(nextTotal / pageSize)))
+
+      setSelectedRecordIds([])
+      setPreviewImage('')
+      setIsDeleteDialogOpen(false)
+      setIsLoading(true)
+      showSuccess(`已删除 ${deletedCount} 条历史记录。`)
+
+      if (nextPage !== page) {
+        setPage(nextPage)
+        return
+      }
+
+      setHistoryReloadKey(current => current + 1)
+    } catch (error) {
+      showError(extractErrorMessage(error, '历史记录删除失败。'))
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -216,25 +258,33 @@ function HistoryPage() {
                     spacing={2}
                   >
                     <Stack spacing={0.5}>
-                      <Typography variant="h6">批量导出</Typography>
+                      <Typography variant="h6">批量操作</Typography>
                       <Typography color="text.secondary" variant="body2">
-                        已选 {selectedCount} 条 / 当前页 {records.length} 条。仅导出当前页勾选记录。
+                        已选 {selectedCount} 条 / 当前页 {records.length} 条。仅处理当前页勾选记录。
                       </Typography>
                     </Stack>
                     <Stack direction="row" flexWrap="wrap" gap={1}>
                       <Button
-                        disabled={!selectedCount || exportingFormat !== null}
+                        disabled={!selectedCount || isBatchActionBusy}
                         onClick={() => void handleExport('csv')}
                         variant="outlined"
                       >
                         {exportingFormat === 'csv' ? '导出中...' : '导出 CSV'}
                       </Button>
                       <Button
-                        disabled={!selectedCount || exportingFormat !== null}
+                        disabled={!selectedCount || isBatchActionBusy}
                         onClick={() => void handleExport('xlsx')}
                         variant="contained"
                       >
                         {exportingFormat === 'xlsx' ? '导出中...' : '导出 XLSX'}
+                      </Button>
+                      <Button
+                        color="error"
+                        disabled={!selectedCount || isBatchActionBusy}
+                        onClick={() => setIsDeleteDialogOpen(true)}
+                        variant="outlined"
+                      >
+                        {isDeleting ? '删除中...' : '删除所选'}
                       </Button>
                     </Stack>
                   </Stack>
@@ -247,6 +297,7 @@ function HistoryPage() {
                         <TableCell padding="checkbox">
                           <Checkbox
                             checked={allRecordsSelected}
+                            disabled={isDeleting}
                             indeterminate={hasPartialSelection}
                             slotProps={{ input: { 'aria-label': '全选当前页记录' } }}
                             onChange={event => handleSelectAllRecords(event.target.checked)}
@@ -274,6 +325,7 @@ function HistoryPage() {
                             <TableCell padding="checkbox">
                               <Checkbox
                                 checked={isSelected}
+                                disabled={isDeleting}
                                 slotProps={{ input: { 'aria-label': `选择历史记录 ${record.id}` } }}
                                 onChange={() => handleToggleRecord(record.id)}
                               />
@@ -378,6 +430,43 @@ function HistoryPage() {
             />
           ) : null}
         </DialogContent>
+      </Dialog>
+
+      <Dialog
+        maxWidth="xs"
+        onClose={() => {
+          if (!isDeleting) {
+            setIsDeleteDialogOpen(false)
+          }
+        }}
+        open={isDeleteDialogOpen}
+      >
+        <DialogTitle>确认删除历史记录</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2}>
+            <Typography variant="body2">
+              将删除当前选中的 {selectedCount} 条评估历史记录，并同步清理关联图片资源。
+            </Typography>
+            <Alert severity="warning">删除后不可恢复，请确认后再继续。</Alert>
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 3 }}>
+          <Button
+            disabled={isDeleting}
+            onClick={() => setIsDeleteDialogOpen(false)}
+            variant="text"
+          >
+            取消
+          </Button>
+          <Button
+            color="error"
+            disabled={isDeleting || !selectedCount}
+            onClick={() => void handleDeleteSelectedRecords()}
+            variant="contained"
+          >
+            {isDeleting ? '删除中...' : '确认删除'}
+          </Button>
+        </DialogActions>
       </Dialog>
     </>
   )

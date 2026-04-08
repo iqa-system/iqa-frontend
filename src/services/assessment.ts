@@ -201,6 +201,14 @@ export async function getAssessmentHistory(query: HistoryQuery) {
   return unwrapResponse<PageAssessRecord>(response)
 }
 
+export async function deleteAssessmentHistory(ids: number[]) {
+  const response = await apiRequest.delete('/assess/history', {
+    data: { ids },
+  })
+
+  return unwrapResponse<number>(response)
+}
+
 function resolveHistoryImagePath(record: Pick<AssessRecord, 'fileEntryId' | 'imageURL'>) {
   const imageURL = record.imageURL?.trim()
 
