@@ -286,7 +286,7 @@ function ForgotPasswordPage() {
                     验证码已发送至 {form.email.trim()}。请查收邮箱后输入验证码完成密码重置。
                   </Alert>
                   <TextField
-                    InputProps={{ readOnly: true }}
+                    slotProps={{ input: { readOnly: true } }}
                     label="邮箱"
                     type="email"
                     value={form.email}
@@ -311,7 +311,7 @@ function ForgotPasswordPage() {
                   <TextField
                     error={Boolean(errors.code)}
                     helperText={errors.code}
-                    inputProps={{ inputMode: 'numeric', maxLength: 6, pattern: '\\d{6}' }}
+                    slotProps={{ htmlInput: { inputMode: 'numeric', maxLength: 6, pattern: '\\d{6}' } }}
                     label="验证码"
                     onChange={event => {
                       setForm(current => ({ ...current, code: event.target.value }))

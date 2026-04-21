@@ -16,6 +16,7 @@ import {
   Typography,
 } from '@mui/material'
 import AssessmentOutlinedIcon from '@mui/icons-material/AssessmentOutlined'
+import AdminPanelSettingsRoundedIcon from '@mui/icons-material/AdminPanelSettingsRounded'
 import HistoryOutlinedIcon from '@mui/icons-material/HistoryOutlined'
 import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded'
 import PersonOutlineRoundedIcon from '@mui/icons-material/PersonOutlineRounded'
@@ -27,12 +28,12 @@ import { Link as RouterLink, Outlet, useLocation, useNavigate } from 'react-rout
 import LoadingScreen from '@/components/LoadingScreen'
 import { useAuthStore } from '@/stores/authStore'
 import { useSnackbarStore } from '@/stores/snackbarStore'
-import { getUserRoleLabel } from '@/utils/constants'
+import { getUserRoleLabel, isAdminRole } from '@/utils/constants'
 import { refreshSessionAndUser } from '@/utils/session'
 
 const drawerWidth = 280
 
-const navigationItems = [
+const primaryNavigationItems = [
   {
     icon: <AssessmentOutlinedIcon />,
     label: '图像评估',
@@ -43,6 +44,15 @@ const navigationItems = [
     label: '历史记录',
     to: '/history',
   },
+]
+
+const adminNavigationItem = {
+  icon: <AdminPanelSettingsRoundedIcon />,
+  label: '管理员',
+  to: '/admin',
+}
+
+const secondaryNavigationItems = [
   {
     icon: <PersonOutlineRoundedIcon />,
     label: '个人信息',
@@ -69,6 +79,11 @@ function AppLayout() {
   } = useAuthStore()
   const showInfo = useSnackbarStore(state => state.showInfo)
   const showWarning = useSnackbarStore(state => state.showWarning)
+
+  // 管理员入口只在当前用户拥有管理员角色时展示, 普通用户不会在导航中看到该菜单.
+  const navigationItems = isAdminRole(user?.role)
+    ? [...primaryNavigationItems, adminNavigationItem, ...secondaryNavigationItems]
+    : [...primaryNavigationItems, ...secondaryNavigationItems]
 
   useEffect(() => {
     let active = true

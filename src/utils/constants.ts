@@ -31,6 +31,8 @@ export const userRoleLabelMap: Record<UserRole, string> = {
   ADMIN: '管理员',
 }
 
+export const editableUserRoles: UserRole[] = ['USER', 'ADMIN']
+
 export function getSceneLabel(scene: string | number | null | undefined) {
   if (scene === null || scene === undefined) {
     return '未知场景'
@@ -53,6 +55,10 @@ export function getUserRoleLabel(role: UserRole | null | undefined) {
   }
 
   return userRoleLabelMap[role] ?? role
+}
+
+export function isAdminRole(role: UserRole | null | undefined) {
+  return role === 'ADMIN'
 }
 
 export interface DistortionDisplayItem {

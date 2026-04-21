@@ -1,8 +1,10 @@
 import { Navigate, createBrowserRouter } from 'react-router'
 
+import AdminRoute from '@/components/AdminRoute'
 import AppLayout from '@/components/Layout/AppLayout'
 import ForgotPasswordPage from '@/pages/Auth/ForgotPassword'
 import ProtectedRoute from '@/components/ProtectedRoute'
+import AdminPage from '@/pages/Admin/Admin'
 import LoginPage from '@/pages/Auth/Login'
 import RegisterPage from '@/pages/Auth/Register'
 import AssessmentPage from '@/pages/Assessment/Assessment'
@@ -50,6 +52,16 @@ export const router = createBrowserRouter([
           {
             path: 'settings',
             element: <SettingsPage />,
+          },
+          {
+            path: 'admin',
+            element: <AdminRoute />,
+            children: [
+              {
+                index: true,
+                element: <AdminPage />,
+              },
+            ],
           },
         ],
       },
