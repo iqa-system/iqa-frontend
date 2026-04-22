@@ -52,6 +52,7 @@ import type {
 import { extractErrorMessage } from '@/utils/api-request'
 import {
   editableUserRoles,
+  getUserRoleChipColor,
   getSceneLabel,
   getUserRoleLabel,
 } from '@/utils/constants'
@@ -59,7 +60,7 @@ import {
   exportAdminHistoryRecords,
   type AdminHistoryExportFormat,
 } from '@/utils/admin-history-export'
-import { formatDateTime, getQualityScoreDisplay } from '@/utils/format'
+import { formatDateTime, formatExpertScore, getQualityScoreDisplay } from '@/utils/format'
 
 type AdminTab = 'users' | 'history'
 
@@ -428,7 +429,7 @@ function AdminUsersPanel({ currentUserId }: { currentUserId: number | undefined 
                           <TableCell>{user.email}</TableCell>
                           <TableCell>
                             <Chip
-                              color={user.role === 'ADMIN' ? 'secondary' : 'primary'}
+                              color={getUserRoleChipColor(user.role)}
                               label={getUserRoleLabel(user.role)}
                               size="small"
                               variant="outlined"
@@ -484,8 +485,8 @@ function AdminUsersPanel({ currentUserId }: { currentUserId: number | undefined 
               目标用户: {roleDialogUser?.username ?? '--'}
             </Typography>
             <TextField
-              InputProps={{ readOnly: true }}
               label="当前角色"
+              slotProps={{ input: { readOnly: true } }}
               value={roleDialogUser ? getUserRoleLabel(roleDialogUser.role) : ''}
             />
             <TextField
@@ -795,20 +796,20 @@ function AdminHistoryPanel() {
                 value={filters.filename}
               />
               <TextField
-                InputLabelProps={{ shrink: true }}
                 label="开始时间"
                 onChange={event => {
                   setFilters(current => ({ ...current, startTime: event.target.value }))
                 }}
+                slotProps={{ inputLabel: { shrink: true } }}
                 type="datetime-local"
                 value={filters.startTime}
               />
               <TextField
-                InputLabelProps={{ shrink: true }}
                 label="结束时间"
                 onChange={event => {
                   setFilters(current => ({ ...current, endTime: event.target.value }))
                 }}
+                slotProps={{ inputLabel: { shrink: true } }}
                 type="datetime-local"
                 value={filters.endTime}
               />
@@ -881,7 +882,7 @@ function AdminHistoryPanel() {
               </Box>
 
               <TableContainer component={Paper} elevation={0}>
-                <Table sx={{ minWidth: 1260 }}>
+                <Table sx={{ minWidth: 1480 }}>
                   <TableHead>
                     <TableRow>
                       <TableCell padding="checkbox">
@@ -900,6 +901,8 @@ function AdminHistoryPanel() {
                       <TableCell>文件名</TableCell>
                       <TableCell>评估时间</TableCell>
                       <TableCell>质量分数</TableCell>
+                      <TableCell>专家评分</TableCell>
+                      <TableCell>评分时间</TableCell>
                       <TableCell>场景分类</TableCell>
                       <TableCell>失真类型</TableCell>
                     </TableRow>
@@ -976,6 +979,8 @@ function AdminHistoryPanel() {
                               </Typography>
                             </Stack>
                           </TableCell>
+                          <TableCell>{formatExpertScore(record.expertScore)}</TableCell>
+                          <TableCell>{formatDateTime(record.expertScoreTime)}</TableCell>
                           <TableCell>{getSceneLabel(record.scene)}</TableCell>
                           <TableCell sx={{ maxWidth: 280, minWidth: 220 }}>
                             <DistortionList distortions={record.distortions} variant="chips" />

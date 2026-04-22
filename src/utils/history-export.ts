@@ -1,15 +1,17 @@
+import { useAuthStore } from '@/stores/authStore'
 import type { AssessRecord } from '@/types/api'
-import { getDistortionDisplayItems, getSceneLabel } from '@/utils/constants'
-import { formatDateTime, formatQualityScore } from '@/utils/format'
+import { getDistortionDisplayItems, getSceneLabel, isExpertRole } from '@/utils/constants'
+import { formatDateTime, formatExpertScore, formatQualityScore } from '@/utils/format'
 
 export type HistoryExportFormat = 'csv' | 'xlsx'
 
 const UTF8_BOM = '\uFEFF'
 const CSV_MIME_TYPE = 'text/csv;charset=utf-8;'
 const XLSX_MIME_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-const HISTORY_EXPORT_HEADERS = ['编号', '文件名', '评估时间', '质量分数', '场景分类', '失真类型'] as const
+const DEFAULT_HISTORY_EXPORT_HEADERS = ['编号', '文件名', '评估时间', '质量分数', '场景分类', '失真类型'] as const
+const EXPERT_HISTORY_EXPORT_HEADERS = ['编号', '文件名', '评估时间', '质量分数', '专家主观评分', '场景分类', '失真类型'] as const
 
-type HistoryExportRow = Record<(typeof HISTORY_EXPORT_HEADERS)[number], string>
+type HistoryExportRow = Record<string, string>
 
 function formatExportTimestamp(date = new Date()) {
   const year = date.getFullYear()
@@ -32,21 +34,37 @@ function formatDistortionSummary(record: AssessRecord) {
     .join('；')
 }
 
-function toHistoryExportRows(records: AssessRecord[]): HistoryExportRow[] {
-  return records.map((record, index) => ({
-    '编号': String(index + 1),
-    '文件名': record.filename ?? '',
-    '评估时间': formatDateTime(record.assessTime),
-    '质量分数': formatQualityScore(record.qualityScore),
-    '场景分类': getSceneLabel(record.scene),
-    '失真类型': formatDistortionSummary(record),
-  }))
+function getHistoryExportHeaders() {
+  return isExpertRole(useAuthStore.getState().user?.role)
+    ? [...EXPERT_HISTORY_EXPORT_HEADERS]
+    : [...DEFAULT_HISTORY_EXPORT_HEADERS]
 }
 
-function getExportMatrix(rows: HistoryExportRow[]) {
+function toHistoryExportRows(records: AssessRecord[], headers: string[]): HistoryExportRow[] {
+  const isExpertHistory = headers.includes('专家主观评分')
+
+  return records.map((record, index) => {
+    const row: HistoryExportRow = {
+      '编号': String(index + 1),
+      '文件名': record.filename ?? '',
+      '评估时间': formatDateTime(record.assessTime),
+      '质量分数': formatQualityScore(record.qualityScore),
+      '场景分类': getSceneLabel(record.scene),
+      '失真类型': formatDistortionSummary(record),
+    }
+
+    if (isExpertHistory) {
+      row['专家主观评分'] = formatExpertScore(record.expertScore, '')
+    }
+
+    return row
+  })
+}
+
+function getExportMatrix(headers: string[], rows: HistoryExportRow[]) {
   return [
-    [...HISTORY_EXPORT_HEADERS],
-    ...rows.map(row => HISTORY_EXPORT_HEADERS.map(header => row[header])),
+    headers,
+    ...rows.map(row => headers.map(header => row[header] ?? '')),
   ]
 }
 
@@ -57,10 +75,10 @@ function escapeCsvCell(value: string) {
   return shouldQuote ? `"${escaped}"` : escaped
 }
 
-function buildCsvContent(rows: HistoryExportRow[]) {
+function buildCsvContent(headers: string[], rows: HistoryExportRow[]) {
   return [
-    HISTORY_EXPORT_HEADERS.join(','),
-    ...rows.map(row => HISTORY_EXPORT_HEADERS.map(header => escapeCsvCell(row[header])).join(',')),
+    headers.join(','),
+    ...rows.map(row => headers.map(header => escapeCsvCell(row[header] ?? '')).join(',')),
   ].join('\r\n')
 }
 
@@ -83,11 +101,12 @@ function downloadBlob(content: BlobPart, options: { filename: string; type: stri
 }
 
 export async function exportHistoryRecords(records: AssessRecord[], format: HistoryExportFormat) {
-  const rows = toHistoryExportRows(records)
+  const headers = getHistoryExportHeaders()
+  const rows = toHistoryExportRows(records, headers)
   const filename = getExportFilename(format)
 
   if (format === 'csv') {
-    downloadBlob(`${UTF8_BOM}${buildCsvContent(rows)}`, {
+    downloadBlob(`${UTF8_BOM}${buildCsvContent(headers, rows)}`, {
       filename,
       type: CSV_MIME_TYPE,
     })
@@ -96,15 +115,25 @@ export async function exportHistoryRecords(records: AssessRecord[], format: Hist
   }
 
   const XLSX = await import('xlsx')
-  const worksheet = XLSX.utils.aoa_to_sheet(getExportMatrix(rows))
-  worksheet['!cols'] = [
-    { wch: 8 },
-    { wch: 28 },
-    { wch: 22 },
-    { wch: 12 },
-    { wch: 14 },
-    { wch: 48 },
-  ]
+  const worksheet = XLSX.utils.aoa_to_sheet(getExportMatrix(headers, rows))
+  worksheet['!cols'] = headers.includes('专家主观评分')
+    ? [
+        { wch: 8 },
+        { wch: 28 },
+        { wch: 22 },
+        { wch: 12 },
+        { wch: 14 },
+        { wch: 14 },
+        { wch: 48 },
+      ]
+    : [
+        { wch: 8 },
+        { wch: 28 },
+        { wch: 22 },
+        { wch: 12 },
+        { wch: 14 },
+        { wch: 48 },
+      ]
 
   const workbook = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(workbook, worksheet, '历史记录')

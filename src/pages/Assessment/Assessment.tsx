@@ -16,6 +16,7 @@ import {
   Stack,
   Tab,
   Tabs,
+  TextField,
   Typography,
 } from '@mui/material'
 import AutoAwesomeRoundedIcon from '@mui/icons-material/AutoAwesomeRounded'
@@ -26,11 +27,13 @@ import { alpha } from '@mui/material/styles'
 
 import DistortionList from '@/components/DistortionList'
 import { assessBatchImages, assessSingleImage } from '@/services/assessment'
+import { useAuthStore } from '@/stores/authStore'
 import { useSnackbarStore } from '@/stores/snackbarStore'
 import type { BatchAssessmentEvent, PredictResult } from '@/types/api'
 import { extractErrorMessage } from '@/utils/api-request'
-import { getSceneLabel } from '@/utils/constants'
+import { getSceneLabel, isExpertRole } from '@/utils/constants'
 import { getQualityScoreDisplay } from '@/utils/format'
+import { parseExpertScoreInput } from '@/utils/validation'
 
 type AssessmentTab = 'single' | 'batch'
 
@@ -112,9 +115,11 @@ function ResultCard({ result }: ResultCardProps) {
 }
 
 function AssessmentPage() {
+  const currentUserRole = useAuthStore(state => state.user?.role)
   const showError = useSnackbarStore(state => state.showError)
   const showInfo = useSnackbarStore(state => state.showInfo)
   const showSuccess = useSnackbarStore(state => state.showSuccess)
+  const isExpertUser = isExpertRole(currentUserRole)
   const [activeTab, setActiveTab] = useState<AssessmentTab>('single')
   const [previewDialog, setPreviewDialog] = useState({
     fileName: '',
@@ -126,6 +131,8 @@ function AssessmentPage() {
   const [singlePreviewUrl, setSinglePreviewUrl] = useState('')
   const [singleResult, setSingleResult] = useState<PredictResult | null>(null)
   const [isSingleSubmitting, setIsSingleSubmitting] = useState(false)
+  const [singleExpertScoreInput, setSingleExpertScoreInput] = useState('')
+  const [singleExpertScoreError, setSingleExpertScoreError] = useState('')
 
   const [batchFiles, setBatchFiles] = useState<File[]>([])
   const [batchPreviews, setBatchPreviews] = useState<PreviewItem[]>([])
@@ -133,7 +140,10 @@ function AssessmentPage() {
   const [batchMessage, setBatchMessage] = useState('等待开始')
   const [batchResults, setBatchResults] = useState<PredictResult[]>([])
   const [isBatchSubmitting, setIsBatchSubmitting] = useState(false)
+  const [batchExpertScoreInputs, setBatchExpertScoreInputs] = useState<string[]>([])
+  const [batchExpertScoreErrors, setBatchExpertScoreErrors] = useState<string[]>([])
   const batchAbortRef = useRef<AbortController | null>(null)
+  const batchSubmittedExpertScoreCountRef = useRef(0)
 
   useEffect(() => {
     return () => {
@@ -191,6 +201,8 @@ function AssessmentPage() {
     setSingleFile(file)
     setSingleResult(null)
     setSinglePreviewUrl(file ? URL.createObjectURL(file) : '')
+    setSingleExpertScoreInput('')
+    setSingleExpertScoreError('')
   }
 
   const handleBatchFileChange = (files: File[]) => {
@@ -206,6 +218,9 @@ function AssessmentPage() {
     setBatchResults([])
     setBatchProgress(0)
     setBatchMessage(files.length ? '文件已准备, 可以开始评估。' : '等待开始')
+    setBatchExpertScoreInputs(files.map(() => ''))
+    setBatchExpertScoreErrors(files.map(() => ''))
+    batchSubmittedExpertScoreCountRef.current = 0
   }
 
   const handleSingleSubmit = async () => {
@@ -214,12 +229,23 @@ function AssessmentPage() {
       return
     }
 
+    const singleExpertScoreResult = isExpertUser
+      ? parseExpertScoreInput(singleExpertScoreInput)
+      : { value: undefined }
+
+    if (singleExpertScoreResult.error) {
+      setSingleExpertScoreError(singleExpertScoreResult.error)
+      return
+    }
+
     setIsSingleSubmitting(true)
 
     try {
-      const result = await assessSingleImage(singleFile)
+      const result = await assessSingleImage(singleFile, {
+        expertScore: singleExpertScoreResult.value,
+      })
       setSingleResult(result)
-      showSuccess('评估完成。')
+      showSuccess(singleExpertScoreResult.value === undefined ? '评估完成。' : '评估完成, 已记录专家主观评分。')
     } catch (error) {
       showError(extractErrorMessage(error, '单张图片评估失败。'))
     } finally {
@@ -245,7 +271,11 @@ function AssessmentPage() {
         setBatchResults(current =>
           event.payload.results.length ? event.payload.results : current,
         )
-        showSuccess(`批量评估完成, 共评估 ${event.payload.completed ?? batchFiles.length} 张图片。`)
+        showSuccess(
+          batchSubmittedExpertScoreCountRef.current > 0
+            ? `批量评估完成, 共评估 ${event.payload.completed ?? batchFiles.length} 张图片, 已提交 ${batchSubmittedExpertScoreCountRef.current} 条专家评分。`
+            : `批量评估完成, 共评估 ${event.payload.completed ?? batchFiles.length} 张图片。`,
+        )
         break
       case 'error':
         setBatchMessage(event.payload.message)
@@ -261,6 +291,30 @@ function AssessmentPage() {
       return
     }
 
+    let parsedExpertScores: Array<number | undefined> | undefined
+
+    if (isExpertUser) {
+      const parsedResults = batchExpertScoreInputs.map(input => parseExpertScoreInput(input))
+      const nextErrors = parsedResults.map(result => result.error ?? '')
+      const hasErrors = nextErrors.some(Boolean)
+
+      setBatchExpertScoreErrors(nextErrors)
+
+      if (hasErrors) {
+        showError('请先修正专家评分输入后再提交。')
+        return
+      }
+
+      parsedExpertScores = parsedResults.map(result => result.value)
+      batchSubmittedExpertScoreCountRef.current = parsedExpertScores.filter(score => score !== undefined).length
+
+      if (!batchSubmittedExpertScoreCountRef.current) {
+        parsedExpertScores = undefined
+      }
+    } else {
+      batchSubmittedExpertScoreCountRef.current = 0
+    }
+
     batchAbortRef.current?.abort()
     const controller = new AbortController()
     batchAbortRef.current = controller
@@ -272,6 +326,7 @@ function AssessmentPage() {
 
     try {
       await assessBatchImages(batchFiles, {
+        expertScores: parsedExpertScores,
         onEvent: handleBatchEvent,
         signal: controller.signal,
       })
@@ -376,6 +431,28 @@ function AssessmentPage() {
                       <Alert severity="info">
                         {singleFile ? `当前文件: ${singleFile.name}` : '尚未选择图片。'}
                       </Alert>
+                      {isExpertUser ? (
+                        <TextField
+                          error={Boolean(singleExpertScoreError)}
+                          helperText={singleExpertScoreError || '可选填写 0.00 到 5.00 之间的主观评分, 最多 2 位小数。'}
+                          label="专家主观评分"
+                          onChange={event => {
+                            setSingleExpertScoreInput(event.target.value)
+                            setSingleExpertScoreError('')
+                          }}
+                          placeholder="例如 4.50"
+                          slotProps={{
+                            htmlInput: {
+                              inputMode: 'decimal',
+                              max: 5,
+                              min: 0,
+                              step: '0.01',
+                            },
+                          }}
+                          type="number"
+                          value={singleExpertScoreInput}
+                        />
+                      ) : null}
                       <Button
                         disabled={!singleFile || isSingleSubmitting}
                         onClick={() => void handleSingleSubmit()}
@@ -478,6 +555,73 @@ function AssessmentPage() {
                           />
                         </Button>
                         <Alert severity="info">{batchCountLabel}</Alert>
+                        {isExpertUser && batchFiles.length ? (
+                          <Stack spacing={1.5}>
+                            <Typography variant="subtitle2">专家主观评分</Typography>
+                            <Typography color="text.secondary" variant="body2">
+                              可按文件顺序填写主观评分. 留空表示本次不填写该图片评分。
+                            </Typography>
+                            <Box
+                              sx={{
+                                display: 'grid',
+                                gap: 1.25,
+                                maxHeight: 260,
+                                overflowY: 'visible',
+                                pr: 0.5,
+                              }}
+                            >
+                              {batchFiles.map((file, index) => (
+                                <Box
+                                  key={`${file.name}-${index}`}
+                                  sx={{
+                                    alignItems: 'flex-start',
+                                    display: 'grid',
+                                    gap: 1.25,
+                                    gridTemplateColumns: 'minmax(0, 1fr) 160px',
+                                  }}
+                                >
+                                  <Stack spacing={0.25} sx={{ minWidth: 0 }}>
+                                    <Typography noWrap title={file.name} variant="body2">
+                                      {file.name}
+                                    </Typography>
+                                    <Typography color="text.secondary" variant="caption">
+                                      第 {index + 1} 张图片
+                                    </Typography>
+                                  </Stack>
+                                  <TextField
+                                    error={Boolean(batchExpertScoreErrors[index])}
+                                    helperText={batchExpertScoreErrors[index] || ' '}
+                                    label="评分"
+                                    onChange={event => {
+                                      setBatchExpertScoreInputs(current =>
+                                        current.map((value, currentIndex) => (
+                                          currentIndex === index ? event.target.value : value
+                                        )),
+                                      )
+                                      setBatchExpertScoreErrors(current =>
+                                        current.map((value, currentIndex) => (
+                                          currentIndex === index ? '' : value
+                                        )),
+                                      )
+                                    }}
+                                    placeholder="0.00 - 5.00"
+                                    size="small"
+                                    slotProps={{
+                                      htmlInput: {
+                                        inputMode: 'decimal',
+                                        max: 5,
+                                        min: 0,
+                                        step: '0.01',
+                                      },
+                                    }}
+                                    type="number"
+                                    value={batchExpertScoreInputs[index] ?? ''}
+                                  />
+                                </Box>
+                              ))}
+                            </Box>
+                          </Stack>
+                        ) : null}
                         <Button
                           disabled={!batchFiles.length || isBatchSubmitting}
                           onClick={() => void handleBatchSubmit()}

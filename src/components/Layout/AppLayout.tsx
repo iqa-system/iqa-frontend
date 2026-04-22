@@ -28,7 +28,7 @@ import { Link as RouterLink, Outlet, useLocation, useNavigate } from 'react-rout
 import LoadingScreen from '@/components/LoadingScreen'
 import { useAuthStore } from '@/stores/authStore'
 import { useSnackbarStore } from '@/stores/snackbarStore'
-import { getUserRoleLabel, isAdminRole } from '@/utils/constants'
+import { getUserRoleChipColor, getUserRoleLabel, isAdminRole } from '@/utils/constants'
 import { refreshSessionAndUser } from '@/utils/session'
 
 const drawerWidth = 280
@@ -175,7 +175,7 @@ function AppLayout() {
             />
             {user?.role ? (
               <Chip
-                color={user.role === 'ADMIN' ? 'secondary' : 'default'}
+                color={getUserRoleChipColor(user.role)}
                 label={getUserRoleLabel(user.role)}
                 variant="outlined"
               />

@@ -20,7 +20,7 @@ import { getUserInfo, updateUserInfo } from '@/services/user'
 import { useAuthStore } from '@/stores/authStore'
 import { useSnackbarStore } from '@/stores/snackbarStore'
 import { extractErrorMessage } from '@/utils/api-request'
-import { getUserRoleLabel } from '@/utils/constants'
+import { getUserRoleChipColor, getUserRoleLabel } from '@/utils/constants'
 import { formatDateTime } from '@/utils/format'
 import { EMAIL_MAX_LENGTH, isValidEmail } from '@/utils/validation'
 
@@ -230,7 +230,7 @@ function ProfilePage() {
                   <Typography variant="h5">{authUser?.username ?? '--'}</Typography>
                   {authUser?.role ? (
                     <Chip
-                      color={authUser.role === 'ADMIN' ? 'secondary' : 'primary'}
+                      color={getUserRoleChipColor(authUser.role)}
                       label={getUserRoleLabel(authUser.role)}
                       size="small"
                       variant="outlined"

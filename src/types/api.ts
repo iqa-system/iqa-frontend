@@ -23,7 +23,19 @@ export interface AuthTokenResponse {
  * 当前系统已知的用户角色联合类型.
  * 如果后端后续扩展角色, 需要在这里同步追加字面量类型.
  */
-export type UserRole = 'USER' | 'ADMIN'
+export type UserRole = 'USER' | 'ADMIN' | 'EXPERT'
+
+/**
+ * 公开注册页允许自助选择的角色类型.
+ * 管理员不允许通过注册页直接创建.
+ */
+export type SelfRegisterRole = 'USER' | 'EXPERT'
+
+/**
+ * 登录页入口角色类型.
+ * 当前登录页提供普通用户, 评估专家和管理员三个入口.
+ */
+export type LoginEntryRole = 'USER' | 'EXPERT' | 'ADMIN'
 
 /**
  * 当前登录用户或管理员用户列表中的用户信息.
@@ -83,6 +95,15 @@ export interface AssessRecord {
    * 后端会返回可直接用于图片展示的路径, 前端会基于它生成 <img> 的最终 src.
    */
   imageURL?: string | null
+  /**
+   * 专家主观评分.
+   * 仅当当前记录由 EXPERT 用户填写过主观评分时才会有值.
+   */
+  expertScore?: number | null
+  /**
+   * 专家主观评分最后一次填写或修改时间.
+   */
+  expertScoreTime?: string | null
   assessTime: string
   qualityScore: number
   scene: string | number
@@ -119,6 +140,15 @@ export interface AdminAssessRecord {
    * 后端会返回可直接用于图片展示的路径, 前端会基于它生成 <img> 的最终 src.
    */
   imageURL?: string | null
+  /**
+   * 专家主观评分.
+   * 管理员可通过全站历史只读查看该值.
+   */
+  expertScore?: number | null
+  /**
+   * 专家主观评分最后一次填写或修改时间.
+   */
+  expertScoreTime?: string | null
   assessTime: string
   qualityScore: number
   scene: string | number
@@ -182,6 +212,7 @@ export interface LoginPayload {
  */
 export interface RegisterPayload extends LoginPayload {
   email: string
+  role: SelfRegisterRole
 }
 
 /**
@@ -216,6 +247,13 @@ export interface UpdateUserPayload {
  */
 export interface AdminUpdateUserRolePayload {
   role: UserRole
+}
+
+/**
+ * 专家用户补录或修改历史记录主观评分时的请求载荷.
+ */
+export interface UpdateAssessmentExpertScorePayload {
+  expertScore: number
 }
 
 /**

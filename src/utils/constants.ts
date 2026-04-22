@@ -29,9 +29,12 @@ export const distLabelMap: Record<string, string> = {
 export const userRoleLabelMap: Record<UserRole, string> = {
   USER: '普通用户',
   ADMIN: '管理员',
+  EXPERT: '评估专家',
 }
 
-export const editableUserRoles: UserRole[] = ['USER', 'ADMIN']
+export const editableUserRoles: UserRole[] = ['USER', 'ADMIN', 'EXPERT']
+
+export type UserRoleChipColor = 'default' | 'primary' | 'secondary' | 'warning'
 
 export function getSceneLabel(scene: string | number | null | undefined) {
   if (scene === null || scene === undefined) {
@@ -57,8 +60,28 @@ export function getUserRoleLabel(role: UserRole | null | undefined) {
   return userRoleLabelMap[role] ?? role
 }
 
+export function getUserRoleChipColor(role: UserRole | null | undefined): UserRoleChipColor {
+  if (role === 'ADMIN') {
+    return 'secondary'
+  }
+
+  if (role === 'EXPERT') {
+    return 'warning'
+  }
+
+  if (role === 'USER') {
+    return 'primary'
+  }
+
+  return 'default'
+}
+
 export function isAdminRole(role: UserRole | null | undefined) {
   return role === 'ADMIN'
+}
+
+export function isExpertRole(role: UserRole | null | undefined) {
+  return role === 'EXPERT'
 }
 
 export interface DistortionDisplayItem {

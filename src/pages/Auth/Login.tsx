@@ -8,6 +8,8 @@ import {
   CircularProgress,
   Link,
   Stack,
+  Tab,
+  Tabs,
   TextField,
   Typography,
 } from '@mui/material'
@@ -18,12 +20,28 @@ import { Link as RouterLink, useLocation, useNavigate } from 'react-router'
 import { login as loginService } from '@/services/auth'
 import { useAuthStore } from '@/stores/authStore'
 import { useSnackbarStore } from '@/stores/snackbarStore'
+import type { LoginEntryRole } from '@/types/api'
 import { extractErrorMessage } from '@/utils/api-request'
+import { getUserRoleLabel } from '@/utils/constants'
 import { applyTokenAndLoadUser, refreshSessionAndUser } from '@/utils/session'
 
 interface LoginErrors {
   password?: string
   username?: string
+}
+
+const loginEntryDescriptions: Record<LoginEntryRole, string> = {
+  USER: '普通用户入口, 适合使用图像质量评估与历史查询功能。',
+  EXPERT: '评估专家入口, 登录后可在评估和历史页面填写或补录主观评分。',
+  ADMIN: '管理员入口, 登录后可访问用户管理和全站历史管理功能。',
+}
+
+function parseLoginEntryRole(search: string): LoginEntryRole {
+  const role = new URLSearchParams(search).get('role')?.trim().toUpperCase()
+  if (role === 'EXPERT' || role === 'ADMIN') {
+    return role
+  }
+  return 'USER'
 }
 
 function LoginPage() {
@@ -33,9 +51,14 @@ function LoginPage() {
   const showError = useSnackbarStore(state => state.showError)
   const showSuccess = useSnackbarStore(state => state.showSuccess)
   const [form, setForm] = useState({ username: '', password: '' })
+  const [selectedRole, setSelectedRole] = useState<LoginEntryRole>(() => parseLoginEntryRole(location.search))
   const [errors, setErrors] = useState<LoginErrors>({})
   const [isAutoLoggingIn, setIsAutoLoggingIn] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  useEffect(() => {
+    setSelectedRole(parseLoginEntryRole(location.search))
+  }, [location.search])
 
   useEffect(() => {
     let active = true
@@ -101,9 +124,15 @@ function LoginPage() {
         username: form.username.trim(),
         password: form.password,
       })
-      console.log('tokenResponse = ', tokenResponse)
-      await applyTokenAndLoadUser(tokenResponse)
-      showSuccess('欢迎回来')
+      const user = await applyTokenAndLoadUser(tokenResponse)
+
+      if (user.role !== selectedRole) {
+        logout()
+        showError(`当前账号角色为${getUserRoleLabel(user.role)}, 请从${getUserRoleLabel(selectedRole)}入口登录。`)
+        return
+      }
+
+      showSuccess(`欢迎回来, ${getUserRoleLabel(user.role)}`)
 
       const redirectTo = typeof location.state?.from?.pathname === 'string'
         ? location.state.from.pathname
@@ -176,6 +205,26 @@ function LoginPage() {
                   检测到本地登录信息, 正在尝试自动登录。
                 </Alert>
               ) : null}
+
+              <Stack spacing={1}>
+                <Typography color="text.secondary" variant="body2">
+                  选择登录入口
+                </Typography>
+                <Tabs
+                  onChange={(_event, value: LoginEntryRole) => {
+                    setSelectedRole(value)
+                  }}
+                  value={selectedRole}
+                  variant="fullWidth"
+                >
+                  <Tab label={getUserRoleLabel('USER')} value="USER" />
+                  <Tab label={getUserRoleLabel('EXPERT')} value="EXPERT" />
+                  <Tab label={getUserRoleLabel('ADMIN')} value="ADMIN" />
+                </Tabs>
+                <Alert severity={selectedRole === 'ADMIN' ? 'warning' : selectedRole === 'EXPERT' ? 'info' : 'success'}>
+                  {loginEntryDescriptions[selectedRole]}
+                </Alert>
+              </Stack>
 
               <TextField
                 autoComplete="username"

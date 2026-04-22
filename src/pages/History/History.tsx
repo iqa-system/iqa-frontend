@@ -19,6 +19,7 @@ import {
   TableHead,
   TablePagination,
   TableRow,
+  TextField,
   Typography,
 } from '@mui/material'
 
@@ -28,17 +29,22 @@ import {
   deleteAssessmentHistory,
   getAssessmentHistory,
   resolveHistoryImageUrl,
+  updateAssessmentExpertScore,
 } from '@/services/assessment'
+import { useAuthStore } from '@/stores/authStore'
 import { useSnackbarStore } from '@/stores/snackbarStore'
 import type { AssessRecord } from '@/types/api'
 import { extractErrorMessage } from '@/utils/api-request'
-import { getSceneLabel } from '@/utils/constants'
-import { formatDateTime, getQualityScoreDisplay } from '@/utils/format'
+import { getSceneLabel, isExpertRole } from '@/utils/constants'
+import { formatDateTime, formatExpertScore, getQualityScoreDisplay } from '@/utils/format'
 import { exportHistoryRecords, type HistoryExportFormat } from '@/utils/history-export'
+import { parseExpertScoreInput } from '@/utils/validation'
 
 function HistoryPage() {
+  const currentUserRole = useAuthStore(state => state.user?.role)
   const showError = useSnackbarStore(state => state.showError)
   const showSuccess = useSnackbarStore(state => state.showSuccess)
+  const isExpertUser = isExpertRole(currentUserRole)
   const [records, setRecords] = useState<AssessRecord[]>([])
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
@@ -50,6 +56,10 @@ function HistoryPage() {
   const [exportingFormat, setExportingFormat] = useState<HistoryExportFormat | null>(null)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [expertScoreDialogRecord, setExpertScoreDialogRecord] = useState<AssessRecord | null>(null)
+  const [expertScoreInput, setExpertScoreInput] = useState('')
+  const [expertScoreError, setExpertScoreError] = useState('')
+  const [isSavingExpertScore, setIsSavingExpertScore] = useState(false)
   const [historyReloadKey, setHistoryReloadKey] = useState(0)
 
   useEffect(() => {
@@ -58,6 +68,9 @@ function HistoryPage() {
     setSelectedRecordIds([])
     setPreviewImage('')
     setIsDeleteDialogOpen(false)
+    setExpertScoreDialogRecord(null)
+    setExpertScoreInput('')
+    setExpertScoreError('')
 
     void getAssessmentHistory({ page, pageSize })
       .then(data => {
@@ -135,6 +148,55 @@ function HistoryPage() {
       currentIds.includes(recordId) ? currentIds : [...currentIds, recordId]
     ))
     setPreviewImage(currentImage => (currentImage === imageUrl ? '' : currentImage))
+  }
+
+  /**
+   * 历史页的专家评分修改只对 EXPERT 用户开放.
+   * 打开弹窗时先缓存当前记录快照, 避免刷新列表后弹窗内容出现错位.
+   */
+  const handleOpenExpertScoreDialog = (record: AssessRecord) => {
+    setExpertScoreDialogRecord(record)
+    setExpertScoreInput(formatExpertScore(record.expertScore, ''))
+    setExpertScoreError('')
+  }
+
+  const handleCloseExpertScoreDialog = () => {
+    if (isSavingExpertScore) {
+      return
+    }
+
+    setExpertScoreDialogRecord(null)
+    setExpertScoreInput('')
+    setExpertScoreError('')
+  }
+
+  const handleSaveExpertScore = async () => {
+    if (!expertScoreDialogRecord) {
+      return
+    }
+
+    const validationResult = parseExpertScoreInput(expertScoreInput, { required: true })
+
+    if (validationResult.error || validationResult.value === undefined) {
+      setExpertScoreError(validationResult.error || '请输入专家主观评分.')
+      return
+    }
+
+    setIsSavingExpertScore(true)
+
+    try {
+      const message = await updateAssessmentExpertScore(expertScoreDialogRecord.id, validationResult.value)
+      setExpertScoreDialogRecord(null)
+      setExpertScoreInput('')
+      setExpertScoreError('')
+      setIsLoading(true)
+      showSuccess(message || '专家主观评分保存成功。')
+      setHistoryReloadKey(current => current + 1)
+    } catch (error) {
+      showError(extractErrorMessage(error, '专家主观评分保存失败。'))
+    } finally {
+      setIsSavingExpertScore(false)
+    }
   }
 
   const handleSelectAllRecords = (checked: boolean) => {
@@ -271,7 +333,7 @@ function HistoryPage() {
                 </Box>
 
                 <TableContainer component={Paper} elevation={0}>
-                  <Table sx={{ minWidth: 1040 }}>
+                  <Table sx={{ minWidth: isExpertUser ? 1360 : 1040 }}>
                     <TableHead>
                       <TableRow>
                         <TableCell padding="checkbox">
@@ -288,8 +350,11 @@ function HistoryPage() {
                         <TableCell>文件名</TableCell>
                         <TableCell>评估时间</TableCell>
                         <TableCell>质量分数</TableCell>
+                        {isExpertUser ? <TableCell>专家评分</TableCell> : null}
+                        {isExpertUser ? <TableCell>评分时间</TableCell> : null}
                         <TableCell>场景分类</TableCell>
                         <TableCell>失真类型</TableCell>
+                        {isExpertUser ? <TableCell align="right">操作</TableCell> : null}
                       </TableRow>
                     </TableHead>
                     <TableBody>
@@ -362,10 +427,28 @@ function HistoryPage() {
                                 </Typography>
                               </Stack>
                             </TableCell>
+                            {isExpertUser ? (
+                              <TableCell>{formatExpertScore(record.expertScore)}</TableCell>
+                            ) : null}
+                            {isExpertUser ? (
+                              <TableCell>{formatDateTime(record.expertScoreTime)}</TableCell>
+                            ) : null}
                             <TableCell>{getSceneLabel(record.scene)}</TableCell>
                             <TableCell sx={{ maxWidth: 280, minWidth: 220 }}>
                               <DistortionList distortions={record.distortions} variant="chips" />
                             </TableCell>
+                            {isExpertUser ? (
+                              <TableCell align="right">
+                                <Button
+                                  disabled={isDeleting || isSavingExpertScore}
+                                  onClick={() => handleOpenExpertScoreDialog(record)}
+                                  size="small"
+                                  variant="outlined"
+                                >
+                                  {record.expertScore === null || record.expertScore === undefined ? '填写评分' : '修改评分'}
+                                </Button>
+                              </TableCell>
+                            ) : null}
                           </TableRow>
                         )
                       })}
@@ -415,6 +498,57 @@ function HistoryPage() {
             />
           ) : null}
         </DialogContent>
+      </Dialog>
+
+      <Dialog maxWidth="xs" onClose={handleCloseExpertScoreDialog} open={Boolean(expertScoreDialogRecord)}>
+        <DialogTitle>
+          {expertScoreDialogRecord?.expertScore === null || expertScoreDialogRecord?.expertScore === undefined
+            ? '填写专家评分'
+            : '修改专家评分'}
+        </DialogTitle>
+        <DialogContent>
+          <Stack spacing={2.5} sx={{ pt: 1 }}>
+            <Stack spacing={0.5}>
+              <Typography variant="body2">
+                文件名: {expertScoreDialogRecord?.filename ?? '--'}
+              </Typography>
+              <Typography color="text.secondary" variant="body2">
+                评估时间: {formatDateTime(expertScoreDialogRecord?.assessTime)}
+              </Typography>
+            </Stack>
+            <TextField
+              error={Boolean(expertScoreError)}
+              helperText={expertScoreError || '请输入 0.00 到 5.00 之间的分值, 最多 2 位小数。'}
+              label="专家主观评分"
+              onChange={event => {
+                setExpertScoreInput(event.target.value)
+                setExpertScoreError('')
+              }}
+              slotProps={{
+                htmlInput: {
+                  inputMode: 'decimal',
+                  max: 5,
+                  min: 0,
+                  step: '0.01',
+                },
+              }}
+              type="number"
+              value={expertScoreInput}
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 3 }}>
+          <Button disabled={isSavingExpertScore} onClick={handleCloseExpertScoreDialog} variant="text">
+            取消
+          </Button>
+          <Button
+            disabled={isSavingExpertScore}
+            onClick={() => void handleSaveExpertScore()}
+            variant="contained"
+          >
+            {isSavingExpertScore ? '保存中...' : '保存评分'}
+          </Button>
+        </DialogActions>
       </Dialog>
 
       <Dialog

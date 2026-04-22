@@ -15,6 +15,7 @@ import type {
   HistoryQuery,
   PageAssessRecord,
   PredictResult,
+  UpdateAssessmentExpertScorePayload,
 } from '@/types/api'
 
 type SseEventName = 'start' | 'progress' | 'result' | 'completed' | 'error'
@@ -144,9 +145,22 @@ async function readBatchSseStream(
   }
 }
 
-export async function assessSingleImage(file: File) {
+/**
+ * 单张评估支持 EXPERT 用户附带可选主观评分.
+ * 非专家用户调用时不应传 expertScore.
+ */
+export async function assessSingleImage(
+  file: File,
+  options?: {
+    expertScore?: number
+  },
+) {
   const formData = new FormData()
   formData.append('file', file)
+
+  if (options?.expertScore !== undefined) {
+    formData.append('expertScore', String(options.expertScore))
+  }
 
   const response = await apiRequest.post('/assess', formData, {
     headers: {
@@ -160,12 +174,19 @@ export async function assessSingleImage(file: File) {
 export async function assessBatchImages(
   files: File[],
   options: {
+    expertScores?: Array<number | undefined>
     signal?: AbortSignal
     onEvent: (event: BatchAssessmentEvent) => void
   },
 ) {
   const formData = new FormData()
   files.forEach(file => formData.append('files', file))
+
+  if (options.expertScores?.length) {
+    options.expertScores.forEach(score => {
+      formData.append('expertScores', score === undefined ? '' : String(score))
+    })
+  }
 
   const authorization = useAuthStore.getState().token?.accessToken
   const headers: HeadersInit = authorization ? { Authorization: authorization } : {}
@@ -207,6 +228,17 @@ export async function deleteAssessmentHistory(ids: number[]) {
   })
 
   return unwrapResponse<number>(response)
+}
+
+/**
+ * EXPERT 用户可为自己的历史记录补录或修改主观评分.
+ * 后端要求使用 JSON 请求体提交 expertScore 字段.
+ */
+export async function updateAssessmentExpertScore(id: number, expertScore: number) {
+  const payload: UpdateAssessmentExpertScorePayload = { expertScore }
+  const response = await apiRequest.patch(`/assess/history/${id}/expert-score`, payload)
+
+  return unwrapResponse<string>(response)
 }
 
 /**

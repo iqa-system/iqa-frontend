@@ -27,6 +27,17 @@ export function formatQualityScore(score: number | null | undefined) {
   return score.toFixed(2)
 }
 
+export function formatExpertScore(
+  score: number | null | undefined,
+  emptyFallback = '--',
+) {
+  if (score === null || score === undefined || Number.isNaN(score)) {
+    return emptyFallback
+  }
+
+  return score.toFixed(2).replace(/\.?0+$/, '')
+}
+
 export const QUALITY_LEVEL_LABELS: Record<1 | 2 | 3 | 4 | 5, string> = {
   1: '差',
   2: '较差',

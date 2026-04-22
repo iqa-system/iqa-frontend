@@ -8,6 +8,8 @@ import {
   CircularProgress,
   Link,
   Stack,
+  Tab,
+  Tabs,
   TextField,
   Typography,
 } from '@mui/material'
@@ -18,7 +20,9 @@ import { Link as RouterLink, useNavigate } from 'react-router'
 import { register as registerService } from '@/services/auth'
 import { useAuthStore } from '@/stores/authStore'
 import { useSnackbarStore } from '@/stores/snackbarStore'
+import type { SelfRegisterRole } from '@/types/api'
 import { extractErrorMessage } from '@/utils/api-request'
+import { getUserRoleLabel } from '@/utils/constants'
 import { refreshSessionAndUser } from '@/utils/session'
 import { EMAIL_MAX_LENGTH, isValidEmail } from '@/utils/validation'
 
@@ -26,7 +30,12 @@ interface RegisterErrors {
   confirmPassword?: string
   email?: string
   password?: string
-  username?: string
+    username?: string
+}
+
+const registerRoleDescriptions: Record<SelfRegisterRole, string> = {
+  USER: '普通用户可使用图像评估, 批量任务和历史记录查询功能。',
+  EXPERT: '评估专家除了模型评估能力外, 还可以填写主观评分并在历史中对比模型结果。',
 }
 
 function RegisterPage() {
@@ -37,6 +46,7 @@ function RegisterPage() {
   const [form, setForm] = useState({
     username: '',
     email: '',
+    role: 'USER' as SelfRegisterRole,
     password: '',
     confirmPassword: '',
   })
@@ -127,10 +137,11 @@ function RegisterPage() {
       const message = await registerService({
         username: form.username.trim(),
         email: form.email.trim(),
+        role: form.role,
         password: form.password,
       })
       showSuccess(message || '注册成功，请登录。')
-      await navigate('/login', { replace: true })
+      await navigate(`/login?role=${form.role}`, { replace: true })
     } catch (error) {
       showError(extractErrorMessage(error, '注册失败, 请稍后重试。'))
     } finally {
@@ -176,6 +187,25 @@ function RegisterPage() {
                   检测到本地登录信息, 正在尝试自动登录。
                 </Alert>
               ) : null}
+
+              <Stack spacing={1}>
+                <Typography color="text.secondary" variant="body2">
+                  选择注册身份
+                </Typography>
+                <Tabs
+                  onChange={(_event, value: SelfRegisterRole) => {
+                    setForm(current => ({ ...current, role: value }))
+                  }}
+                  value={form.role}
+                  variant="fullWidth"
+                >
+                  <Tab label={getUserRoleLabel('USER')} value="USER" />
+                  <Tab label={getUserRoleLabel('EXPERT')} value="EXPERT" />
+                </Tabs>
+                <Alert severity={form.role === 'EXPERT' ? 'warning' : 'info'}>
+                  {registerRoleDescriptions[form.role]}
+                </Alert>
+              </Stack>
 
               <TextField
                 autoComplete="username"
@@ -241,7 +271,7 @@ function RegisterPage() {
                 }
                 variant="contained"
               >
-                {isSubmitting ? '注册中...' : '创建账号'}
+                {isSubmitting ? '注册中...' : `创建${getUserRoleLabel(form.role)}账号`}
               </Button>
 
               <Typography color="text.secondary" variant="body2">
