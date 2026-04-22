@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   Alert,
   Box,
@@ -27,7 +27,7 @@ import LoadingScreen from '@/components/LoadingScreen'
 import {
   deleteAssessmentHistory,
   getAssessmentHistory,
-  getHistoryImageBlob,
+  resolveHistoryImageUrl,
 } from '@/services/assessment'
 import { useSnackbarStore } from '@/stores/snackbarStore'
 import type { AssessRecord } from '@/types/api'
@@ -45,8 +45,6 @@ function HistoryPage() {
   const [total, setTotal] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const [selectedRecordIds, setSelectedRecordIds] = useState<number[]>([])
-  const [recordImageUrls, setRecordImageUrls] = useState<Record<number, string>>({})
-  const [loadingImageRecordIds, setLoadingImageRecordIds] = useState<number[]>([])
   const [failedImageRecordIds, setFailedImageRecordIds] = useState<number[]>([])
   const [previewImage, setPreviewImage] = useState('')
   const [exportingFormat, setExportingFormat] = useState<HistoryExportFormat | null>(null)
@@ -87,59 +85,30 @@ function HistoryPage() {
   }, [historyReloadKey, page, pageSize, showError])
 
   useEffect(() => {
-    let active = true
-    const objectUrls: string[] = []
-
-    setRecordImageUrls({})
+    /**
+     * 历史记录切页或刷新后, 旧页面的图片失败态不应继续污染新数据.
+     * 这里在 records 变化时统一重置失败状态, 让每一页都按自己的图片结果重新判断.
+     */
     setFailedImageRecordIds([])
+  }, [records])
 
-    if (!records.length) {
-      setLoadingImageRecordIds([])
+  /**
+   * 新版后端图片资源已经允许直接用于 <img src>.
+   * 这里仅把每条记录的 imageURL 规范化成最终展示地址, 不再主动拉取 Blob 或维护 object URL 生命周期.
+   */
+  const recordImageUrls = useMemo(() => {
+    return records.reduce<Record<number, string>>((currentMap, record) => {
+      const imageUrl = resolveHistoryImageUrl(record)
 
-      return () => {
-        active = false
+      if (imageUrl) {
+        currentMap[record.id] = imageUrl
       }
-    }
 
-    setLoadingImageRecordIds(records.map(record => record.id))
-
-    records.forEach(record => {
-      void getHistoryImageBlob(record)
-        .then(blob => {
-          if (!active) {
-            return
-          }
-
-          const objectUrl = URL.createObjectURL(blob)
-          objectUrls.push(objectUrl)
-
-          setRecordImageUrls(current => ({
-            ...current,
-            [record.id]: objectUrl,
-          }))
-        })
-        .catch(() => {
-          if (active) {
-            setFailedImageRecordIds(currentIds => (
-              currentIds.includes(record.id) ? currentIds : [...currentIds, record.id]
-            ))
-          }
-        })
-        .finally(() => {
-          if (active) {
-            setLoadingImageRecordIds(currentIds => currentIds.filter(id => id !== record.id))
-          }
-        })
-    })
-
-    return () => {
-      active = false
-      objectUrls.forEach(objectUrl => URL.revokeObjectURL(objectUrl))
-    }
+      return currentMap
+    }, {})
   }, [records])
 
   const selectedRecordIdSet = new Set(selectedRecordIds)
-  const loadingImageRecordIdSet = new Set(loadingImageRecordIds)
   const failedImageRecordIdSet = new Set(failedImageRecordIds)
   const selectedRecords = records.filter(record => selectedRecordIdSet.has(record.id))
   const selectedCount = selectedRecords.length
@@ -150,11 +119,22 @@ function HistoryPage() {
   const handleOpenPreview = (recordId: number) => {
     const imageUrl = recordImageUrls[recordId]
 
-    if (!imageUrl) {
+    if (!imageUrl || failedImageRecordIdSet.has(recordId)) {
       return
     }
 
     setPreviewImage(imageUrl)
+  }
+
+  /**
+   * 浏览器会自行请求直连图片资源.
+   * 当 <img> 触发 onError 时, 只记录失败状态并在需要时关闭预览, 避免继续渲染失效图片.
+   */
+  const handleImageLoadError = (recordId: number, imageUrl: string) => {
+    setFailedImageRecordIds(currentIds => (
+      currentIds.includes(recordId) ? currentIds : [...currentIds, recordId]
+    ))
+    setPreviewImage(currentImage => (currentImage === imageUrl ? '' : currentImage))
   }
 
   const handleSelectAllRecords = (checked: boolean) => {
@@ -314,10 +294,10 @@ function HistoryPage() {
                     </TableHead>
                     <TableBody>
                       {records.map(record => {
-                        const imageUrl = recordImageUrls[record.id]
+                        const imageUrl = recordImageUrls[record.id] || ''
                         const isSelected = selectedRecordIdSet.has(record.id)
-                        const isImageLoading = loadingImageRecordIdSet.has(record.id)
                         const isImageFailed = failedImageRecordIdSet.has(record.id)
+                        const hasImage = Boolean(imageUrl) && !isImageFailed
                         const qualityDisplay = getQualityScoreDisplay(record.qualityScore)
 
                         return (
@@ -332,11 +312,13 @@ function HistoryPage() {
                             </TableCell>
                             <TableCell>{record.id}</TableCell>
                             <TableCell>
-                              {imageUrl ? (
+                              {hasImage ? (
                                 <Box
                                   alt={record.filename}
                                   component="img"
+                                  loading="lazy"
                                   onClick={() => handleOpenPreview(record.id)}
+                                  onError={() => handleImageLoadError(record.id, imageUrl)}
                                   src={imageUrl}
                                   sx={{
                                     borderRadius: 2,
@@ -365,7 +347,7 @@ function HistoryPage() {
                                   })}
                                 >
                                   <Typography color="text.secondary" sx={{ lineHeight: 1.2 }} variant="caption">
-                                    {isImageLoading ? '加载中' : isImageFailed ? '加载失败' : '暂无图片'}
+                                    {isImageFailed ? '加载失败' : '暂无图片'}
                                   </Typography>
                                 </Box>
                               )}

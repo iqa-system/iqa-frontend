@@ -209,28 +209,21 @@ export async function deleteAssessmentHistory(ids: number[]) {
   return unwrapResponse<number>(response)
 }
 
-function resolveHistoryImagePath(record: Pick<AssessRecord, 'fileEntryId' | 'imageURL'>) {
+/**
+ * 新版历史图片资源已经允许直接通过 <img> 访问.
+ * 这里统一把后端返回的 imageURL 规范化成浏览器可直接加载的完整地址.
+ * 对相对路径必须显式拼接 API 基础地址, 否则开发环境下会错误命中前端本地服务.
+ */
+export function resolveHistoryImageUrl(record: Pick<AssessRecord, 'imageURL'>) {
   const imageURL = record.imageURL?.trim()
 
-  if (imageURL) {
-    if (/^https?:\/\//.test(imageURL) || imageURL.startsWith('/')) {
-      return imageURL
-    }
-
-    return `/${imageURL}`
+  if (!imageURL) {
+    return ''
   }
 
-  if (record.fileEntryId) {
-    return `/resource/image/${record.fileEntryId}`
+  if (/^https?:\/\//i.test(imageURL)) {
+    return imageURL
   }
 
-  throw new Error('历史记录缺少可用的图片资源标识。')
-}
-
-export async function getHistoryImageBlob(record: Pick<AssessRecord, 'fileEntryId' | 'imageURL'>) {
-  const response = await apiRequest.get(resolveHistoryImagePath(record), {
-    responseType: 'blob',
-  })
-
-  return response.data as Blob
+  return resolveApiUrl(imageURL)
 }

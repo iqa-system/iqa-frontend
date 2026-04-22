@@ -73,7 +73,15 @@ export interface AssessRecord {
   id: number
   userId: number
   filename: string
+  /**
+   * 文件元数据主键.
+   * 该字段仅作为后端返回的关联元数据保留, 前端图片展示不再依赖它.
+   */
   fileEntryId?: number | null
+  /**
+   * 图片资源路径.
+   * 后端会返回可直接用于图片展示的路径, 前端会基于它生成 <img> 的最终 src.
+   */
   imageURL?: string | null
   assessTime: string
   qualityScore: number
@@ -101,7 +109,15 @@ export interface AdminAssessRecord {
   userId: number
   username: string
   filename: string
+  /**
+   * 文件元数据主键.
+   * 该字段仅作为后端返回的关联元数据保留, 前端图片展示不再依赖它.
+   */
   fileEntryId?: number | null
+  /**
+   * 图片资源路径.
+   * 后端会返回可直接用于图片展示的路径, 前端会基于它生成 <img> 的最终 src.
+   */
   imageURL?: string | null
   assessTime: string
   qualityScore: number
