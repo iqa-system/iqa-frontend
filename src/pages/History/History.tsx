@@ -27,15 +27,20 @@ import DistortionList from '@/components/DistortionList'
 import LoadingScreen from '@/components/LoadingScreen'
 import {
   deleteAssessmentHistory,
+  getAssessmentModels,
   getAssessmentHistory,
   resolveHistoryImageUrl,
   updateAssessmentExpertScore,
 } from '@/services/assessment'
 import { useAuthStore } from '@/stores/authStore'
 import { useSnackbarStore } from '@/stores/snackbarStore'
-import type { AssessRecord } from '@/types/api'
+import type { AssessRecord, ModelInfo } from '@/types/api'
 import { extractErrorMessage } from '@/utils/api-request'
-import { getSceneLabel, isExpertRole } from '@/utils/constants'
+import {
+  getAssessmentModelDisplayName,
+  getSceneLabel,
+  isExpertRole,
+} from '@/utils/constants'
 import { formatDateTime, formatExpertScore, getQualityScoreDisplay } from '@/utils/format'
 import { exportHistoryRecords, type HistoryExportFormat } from '@/utils/history-export'
 import { parseExpertScoreInput } from '@/utils/validation'
@@ -53,6 +58,7 @@ function HistoryPage() {
   const [selectedRecordIds, setSelectedRecordIds] = useState<number[]>([])
   const [failedImageRecordIds, setFailedImageRecordIds] = useState<number[]>([])
   const [previewImage, setPreviewImage] = useState('')
+  const [modelInfoMap, setModelInfoMap] = useState<Record<string, ModelInfo>>({})
   const [exportingFormat, setExportingFormat] = useState<HistoryExportFormat | null>(null)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -104,6 +110,37 @@ function HistoryPage() {
      */
     setFailedImageRecordIds([])
   }, [records])
+
+  useEffect(() => {
+    let active = true
+
+    /**
+     * 历史页的模型名称映射只作为增强展示使用.
+     * 如果模型目录接口失败, 页面会直接回退显示原始 modelId, 不额外打断用户查看历史记录.
+     */
+    void getAssessmentModels()
+      .then(data => {
+        if (!active) {
+          return
+        }
+
+        const nextModelInfoMap = (data.models ?? []).reduce<Record<string, ModelInfo>>((currentMap, model) => {
+          currentMap[model.model_id] = model
+          return currentMap
+        }, {})
+
+        setModelInfoMap(nextModelInfoMap)
+      })
+      .catch(() => {
+        if (active) {
+          setModelInfoMap({})
+        }
+      })
+
+    return () => {
+      active = false
+    }
+  }, [])
 
   /**
    * 新版后端图片资源已经允许直接用于 <img src>.
@@ -333,7 +370,7 @@ function HistoryPage() {
                 </Box>
 
                 <TableContainer component={Paper} elevation={0}>
-                  <Table sx={{ minWidth: isExpertUser ? 1360 : 1040 }}>
+                  <Table sx={{ minWidth: isExpertUser ? 1560 : 1160 }}>
                     <TableHead>
                       <TableRow>
                         <TableCell padding="checkbox">
@@ -350,11 +387,12 @@ function HistoryPage() {
                         <TableCell>文件名</TableCell>
                         <TableCell>评估时间</TableCell>
                         <TableCell>质量分数</TableCell>
+                        <TableCell>评估模型</TableCell>
                         {isExpertUser ? <TableCell>专家评分</TableCell> : null}
                         {isExpertUser ? <TableCell>评分时间</TableCell> : null}
                         <TableCell>场景分类</TableCell>
                         <TableCell>失真类型</TableCell>
-                        {isExpertUser ? <TableCell align="right">操作</TableCell> : null}
+                        {isExpertUser ? <TableCell>操作</TableCell> : null}
                       </TableRow>
                     </TableHead>
                     <TableBody>
@@ -364,6 +402,11 @@ function HistoryPage() {
                         const isImageFailed = failedImageRecordIdSet.has(record.id)
                         const hasImage = Boolean(imageUrl) && !isImageFailed
                         const qualityDisplay = getQualityScoreDisplay(record.qualityScore)
+                        const sceneDisplayText = record.scene === null || record.scene === undefined
+                          ? '该模型未提供场景分类'
+                          : getSceneLabel(record.scene)
+                        const modelDisplayName = getAssessmentModelDisplayName(record.modelId, modelInfoMap)
+                        const hasDistortionCapability = Array.isArray(record.distortions)
 
                         return (
                           <TableRow hover key={record.id} selected={isSelected}>
@@ -427,15 +470,22 @@ function HistoryPage() {
                                 </Typography>
                               </Stack>
                             </TableCell>
+                            <TableCell>{modelDisplayName}</TableCell>
                             {isExpertUser ? (
                               <TableCell>{formatExpertScore(record.expertScore)}</TableCell>
                             ) : null}
                             {isExpertUser ? (
                               <TableCell>{formatDateTime(record.expertScoreTime)}</TableCell>
                             ) : null}
-                            <TableCell>{getSceneLabel(record.scene)}</TableCell>
+                            <TableCell>{sceneDisplayText}</TableCell>
                             <TableCell sx={{ maxWidth: 280, minWidth: 220 }}>
-                              <DistortionList distortions={record.distortions} variant="chips" />
+                              {hasDistortionCapability ? (
+                                <DistortionList distortions={record.distortions} variant="chips" />
+                              ) : (
+                                <Typography color="text.secondary" variant="body2">
+                                  该模型未提供失真类型识别
+                                </Typography>
+                              )}
                             </TableCell>
                             {isExpertUser ? (
                               <TableCell align="right">

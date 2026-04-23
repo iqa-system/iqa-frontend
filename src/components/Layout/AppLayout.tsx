@@ -303,6 +303,7 @@ function AppLayout() {
           flexGrow: 1,
           p: 4,
           pt: '112px',
+          overflowX: 'scroll'
         }}
       >
         <Outlet />

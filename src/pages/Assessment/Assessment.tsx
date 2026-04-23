@@ -13,6 +13,7 @@ import {
   ImageList,
   ImageListItem,
   LinearProgress,
+  MenuItem,
   Stack,
   Tab,
   Tabs,
@@ -26,12 +27,23 @@ import ImageSearchRoundedIcon from '@mui/icons-material/ImageSearchRounded'
 import { alpha } from '@mui/material/styles'
 
 import DistortionList from '@/components/DistortionList'
-import { assessBatchImages, assessSingleImage } from '@/services/assessment'
+import {
+  assessBatchImages,
+  assessSingleImage,
+  getAssessmentModels,
+} from '@/services/assessment'
 import { useAuthStore } from '@/stores/authStore'
 import { useSnackbarStore } from '@/stores/snackbarStore'
-import type { BatchAssessmentEvent, PredictResult } from '@/types/api'
+import type { BatchAssessmentEvent, ModelInfo, PredictResult } from '@/types/api'
 import { extractErrorMessage } from '@/utils/api-request'
-import { getSceneLabel, isExpertRole } from '@/utils/constants'
+import {
+  DEFAULT_ASSESSMENT_MODEL_OPTION_VALUE,
+  getAssessmentModelDisplayName,
+  getDefaultAssessmentModelOptionLabel,
+  getModelCapabilityLabel,
+  getSceneLabel,
+  isExpertRole,
+} from '@/utils/constants'
 import { getQualityScoreDisplay } from '@/utils/format'
 import { parseExpertScoreInput } from '@/utils/validation'
 
@@ -43,11 +55,20 @@ interface PreviewItem {
 }
 
 interface ResultCardProps {
+  modelInfoMap: Record<string, ModelInfo>
   result: PredictResult
 }
 
-function ResultCard({ result }: ResultCardProps) {
+function ResultCard({ modelInfoMap, result }: ResultCardProps) {
   const qualityDisplay = getQualityScoreDisplay(result.quality_score)
+  const fileName = result.file_name?.trim() || '未命名文件'
+  const modelDisplayName = getAssessmentModelDisplayName(result.model_id, modelInfoMap, {
+    emptyFallback: '未知模型',
+  })
+  const sceneDisplayText = result.scene === null
+    ? '该模型未提供场景分类'
+    : getSceneLabel(result.scene)
+  const hasDistortionCapability = Array.isArray(result.distortions)
 
   return (
     <Card
@@ -62,9 +83,9 @@ function ResultCard({ result }: ResultCardProps) {
       <CardContent>
         <Stack spacing={2}>
           <Stack spacing={0.5}>
-            <Typography sx={{fontWeight: 'bolder'}} variant="subtitle1">{result.file_name}</Typography>
+            <Typography sx={{fontWeight: 'bolder'}} variant="subtitle1">{fileName}</Typography>
             <Typography color="text.secondary" variant="body2">
-              模型已完成质量、场景与失真识别。
+              实际执行模型: {modelDisplayName}
             </Typography>
           </Stack>
           <Box
@@ -96,17 +117,23 @@ function ResultCard({ result }: ResultCardProps) {
                 p: 2,
               })}
             >
-                <Typography color="text.secondary" variant="caption">
-                  场景分类
-                </Typography>
-                <Typography variant="body1">{getSceneLabel(result.scene)}</Typography>
-              </Box>
+              <Typography color="text.secondary" variant="caption">
+                场景分类
+              </Typography>
+              <Typography variant="body1">{sceneDisplayText}</Typography>
+            </Box>
           </Box>
           <Stack spacing={1}>
             <Typography color="text.secondary" variant="caption">
               失真类型分布
             </Typography>
-            <DistortionList distortions={result.distortions} variant="panel" />
+            {hasDistortionCapability ? (
+              <DistortionList distortions={result.distortions} variant="panel" />
+            ) : (
+              <Alert severity="info" variant="outlined">
+                该模型未提供失真类型识别.
+              </Alert>
+            )}
           </Stack>
         </Stack>
       </CardContent>
@@ -121,6 +148,11 @@ function AssessmentPage() {
   const showSuccess = useSnackbarStore(state => state.showSuccess)
   const isExpertUser = isExpertRole(currentUserRole)
   const [activeTab, setActiveTab] = useState<AssessmentTab>('single')
+  const [availableModels, setAvailableModels] = useState<ModelInfo[]>([])
+  const [defaultModelId, setDefaultModelId] = useState('')
+  const [selectedModelId, setSelectedModelId] = useState(DEFAULT_ASSESSMENT_MODEL_OPTION_VALUE)
+  const [isModelCatalogLoading, setIsModelCatalogLoading] = useState(true)
+  const [modelCatalogError, setModelCatalogError] = useState('')
   const [previewDialog, setPreviewDialog] = useState({
     fileName: '',
     imageUrl: '',
@@ -164,6 +196,78 @@ function AssessmentPage() {
       batchAbortRef.current?.abort()
     }
   }, [])
+
+  /**
+   * 模型目录是评估页的共享基础数据.
+   * 单张和批量评估都依赖同一套目录和当前选择, 因此在页面级统一加载和维护.
+   * 如果目录接口失败, 前端会回退到“使用后端默认模型”的无 modelId 提交模式.
+   */
+  const loadAssessmentModelCatalog = async () => {
+    setIsModelCatalogLoading(true)
+    setModelCatalogError('')
+
+    try {
+      const data = await getAssessmentModels()
+      const nextModels = data.models ?? []
+
+      setAvailableModels(nextModels)
+      setDefaultModelId(data.default_model_id ?? '')
+      setSelectedModelId(currentModelId => (
+        currentModelId !== DEFAULT_ASSESSMENT_MODEL_OPTION_VALUE
+          && nextModels.some(model => model.model_id === currentModelId)
+          ? currentModelId
+          : DEFAULT_ASSESSMENT_MODEL_OPTION_VALUE
+      ))
+    } catch (error) {
+      setAvailableModels([])
+      setDefaultModelId('')
+      setSelectedModelId(DEFAULT_ASSESSMENT_MODEL_OPTION_VALUE)
+      setModelCatalogError(
+        extractErrorMessage(error, '可用模型加载失败, 当前将继续使用后端默认模型。'),
+      )
+    } finally {
+      setIsModelCatalogLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void loadAssessmentModelCatalog()
+  }, [])
+
+  const modelInfoMap = useMemo(() => {
+    return availableModels.reduce<Record<string, ModelInfo>>((currentMap, model) => {
+      currentMap[model.model_id] = model
+      return currentMap
+    }, {})
+  }, [availableModels])
+
+  const resolvedDefaultModelId = useMemo(() => {
+    return defaultModelId || availableModels.find(model => model.is_default)?.model_id || ''
+  }, [availableModels, defaultModelId])
+
+  const currentSubmittedModelId = selectedModelId === DEFAULT_ASSESSMENT_MODEL_OPTION_VALUE
+    ? undefined
+    : selectedModelId
+
+  const selectedModelInfo = currentSubmittedModelId
+    ? modelInfoMap[currentSubmittedModelId]
+    : modelInfoMap[resolvedDefaultModelId]
+
+  const selectedModelCapabilityLabels = useMemo(() => {
+    return (selectedModelInfo?.capabilities ?? []).map(getModelCapabilityLabel)
+  }, [selectedModelInfo])
+
+  const selectedModelSummaryText = selectedModelInfo
+    ? getAssessmentModelDisplayName(selectedModelInfo.model_id, modelInfoMap)
+    : '后端默认模型'
+
+  const modelSelectorHelperText = modelCatalogError
+    ? '模型目录暂时不可用, 提交时将自动回退到后端默认模型.'
+    : currentSubmittedModelId
+      ? '当前模型会同时作用于单张评估和批量评估.'
+      : '当前未显式指定模型, 提交时将由后端默认模型处理.'
+
+  const isModelSelectorDisabled = isSingleSubmitting || isBatchSubmitting || isModelCatalogLoading
 
   const batchCountLabel = useMemo(() => {
     if (!batchFiles.length) {
@@ -242,6 +346,7 @@ function AssessmentPage() {
 
     try {
       const result = await assessSingleImage(singleFile, {
+        modelId: currentSubmittedModelId,
         expertScore: singleExpertScoreResult.value,
       })
       setSingleResult(result)
@@ -326,6 +431,7 @@ function AssessmentPage() {
 
     try {
       await assessBatchImages(batchFiles, {
+        modelId: currentSubmittedModelId,
         expertScores: parsedExpertScores,
         onEvent: handleBatchEvent,
         signal: controller.signal,
@@ -395,6 +501,119 @@ function AssessmentPage() {
                 value="batch"
               />
             </Tabs>
+
+            <Card variant="outlined">
+              <CardContent>
+                <Stack spacing={2.5}>
+                  <Stack
+                    direction={{ md: 'row', xs: 'column' }}
+                    justifyContent="space-between"
+                    spacing={2}
+                  >
+                    <Stack spacing={0.75}>
+                      <Typography variant="h5">评估模型</Typography>
+                      <Typography color="text.secondary" variant="body2">
+                        单张评估和批量评估共用同一模型选择. 不显式指定时, 会自动使用后端默认模型.
+                      </Typography>
+                    </Stack>
+                    <Chip
+                      color="primary"
+                      label={`当前模型: ${selectedModelSummaryText}`}
+                      sx={{ alignSelf: 'flex-start' }}
+                      variant="outlined"
+                    />
+                  </Stack>
+
+                  {modelCatalogError ? (
+                    <Alert
+                      action={(
+                        <Button
+                          color="inherit"
+                          onClick={() => void loadAssessmentModelCatalog()}
+                          size="small"
+                        >
+                          重试
+                        </Button>
+                      )}
+                      severity="warning"
+                    >
+                      {modelCatalogError}
+                    </Alert>
+                  ) : null}
+
+                  {isModelCatalogLoading ? (
+                    <Alert severity="info">
+                      正在加载可用模型列表. 目录加载完成前, 评估请求仍可按后端默认模型提交.
+                    </Alert>
+                  ) : null}
+
+                  <Box
+                    sx={{
+                      display: 'grid',
+                      gap: 2,
+                      gridTemplateColumns: { md: 'minmax(280px, 360px) minmax(0, 1fr)', xs: '1fr' },
+                    }}
+                  >
+                    <TextField
+                      disabled={isModelSelectorDisabled}
+                      helperText={modelSelectorHelperText}
+                      label="评估模型"
+                      onChange={event => {
+                        setSelectedModelId(event.target.value)
+                      }}
+                      select
+                      value={selectedModelId}
+                    >
+                      <MenuItem value={DEFAULT_ASSESSMENT_MODEL_OPTION_VALUE}>
+                        {getDefaultAssessmentModelOptionLabel(resolvedDefaultModelId, modelInfoMap)}
+                      </MenuItem>
+                      {availableModels.map(model => (
+                        <MenuItem key={model.model_id} value={model.model_id}>
+                          {model.display_name}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+
+                    <Card
+                      sx={theme => ({
+                        bgcolor:
+                          theme.palette.mode === 'dark'
+                            ? 'rgba(15, 23, 32, 0.5)'
+                            : 'rgba(248, 250, 252, 0.72)',
+                        border: `1px solid ${theme.palette.divider}`,
+                        boxShadow: 'none',
+                      })}
+                      variant="outlined"
+                    >
+                      <CardContent sx={{ p: 2.5 }}>
+                        <Stack spacing={1.5}>
+                          <Typography variant="subtitle1">模型说明</Typography>
+                          <Typography color="text.secondary" variant="body2">
+                            默认模型:
+                            {' '}
+                            {getAssessmentModelDisplayName(resolvedDefaultModelId, modelInfoMap, {
+                              emptyFallback: '后端未返回默认模型信息',
+                            })}
+                          </Typography>
+                          <Typography variant="body2">
+                            {selectedModelInfo?.description || '未显式选择具体模型时, 系统将由后端默认模型完成评估.'}
+                          </Typography>
+                          <Stack direction="row" flexWrap="wrap" gap={1}>
+                            {selectedModelCapabilityLabels.length ? (
+                              selectedModelCapabilityLabels.map(capabilityLabel => (
+                                <Chip key={capabilityLabel} label={capabilityLabel} size="small" />
+                              ))
+                            ) : (
+                              <Chip label="能力信息暂不可用" size="small" variant="outlined" />
+                            )}
+                          </Stack>
+                        </Stack>
+                      </CardContent>
+                    </Card>
+                  </Box>
+                </Stack>
+              </CardContent>
+            </Card>
 
             {activeTab === 'single' ? (
               <Box
@@ -517,7 +736,7 @@ function AssessmentPage() {
                   </Card>
 
                 <div style={{ gridColumnStart: 1, gridColumnEnd: 3 }}>
-                  {singleResult ? <ResultCard result={singleResult} /> : null}
+                  {singleResult ? <ResultCard modelInfoMap={modelInfoMap} result={singleResult} /> : null}
                 </div>
               </Box>
             ) : (
@@ -724,8 +943,12 @@ function AssessmentPage() {
                         gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
                       }}
                     >
-                      {batchResults.map(result => (
-                        <ResultCard key={`${result.file_name}-${result.quality_score}`} result={result} />
+                      {batchResults.map((result, index) => (
+                        <ResultCard
+                          key={`${result.file_name ?? 'result'}-${result.model_id}-${index}`}
+                          modelInfoMap={modelInfoMap}
+                          result={result}
+                        />
                       ))}
                     </Box>
                   ) : (

@@ -1,4 +1,4 @@
-import type { DistortionProb, UserRole } from '@/types/api'
+import type { DistortionProb, ModelInfo, UserRole } from '@/types/api'
 
 export const sceneLabelMap: Record<string, string> = {
   '0': '动物',
@@ -33,6 +33,16 @@ export const userRoleLabelMap: Record<UserRole, string> = {
 }
 
 export const editableUserRoles: UserRole[] = ['USER', 'ADMIN', 'EXPERT']
+
+export const DEFAULT_ASSESSMENT_MODEL_OPTION_VALUE = '__DEFAULT_ASSESSMENT_MODEL__'
+export const DEFAULT_ASSESSMENT_MODEL_OPTION_LABEL = '使用后端默认模型'
+
+export const modelCapabilityLabelMap: Record<string, string> = {
+  quality_score: '质量评分',
+  scene: '场景分类',
+  distortions: '失真类型识别',
+  extra_outputs: '扩展输出',
+}
 
 export type UserRoleChipColor = 'default' | 'primary' | 'secondary' | 'warning'
 
@@ -82,6 +92,56 @@ export function isAdminRole(role: UserRole | null | undefined) {
 
 export function isExpertRole(role: UserRole | null | undefined) {
   return role === 'EXPERT'
+}
+
+/**
+ * 将后端返回的 capability 标识转换成更适合界面展示的中文文案.
+ * 如果后端将来追加新的 capability, 前端先保留原始值展示, 避免因为缺少映射而完全不可见.
+ */
+export function getModelCapabilityLabel(capability: string | null | undefined) {
+  if (!capability) {
+    return '未知能力'
+  }
+
+  return modelCapabilityLabelMap[capability] ?? capability
+}
+
+/**
+ * 统一根据模型ID解析展示名称.
+ * 历史记录可能只保存 modelId, 页面再根据最新目录做友好名称映射.
+ * 如果目录里找不到该模型, 则回退显示原始 modelId.
+ */
+export function getAssessmentModelDisplayName(
+  modelId: string | null | undefined,
+  modelInfoMap?: Record<string, Pick<ModelInfo, 'display_name'>>,
+  options: {
+    emptyFallback?: string
+  } = {},
+) {
+  const normalizedModelId = modelId?.trim()
+
+  if (!normalizedModelId) {
+    return options.emptyFallback ?? '未记录模型'
+  }
+
+  return modelInfoMap?.[normalizedModelId]?.display_name ?? normalizedModelId
+}
+
+/**
+ * 统一生成“使用后端默认模型”选项的展示文案.
+ * 如果模型目录里能找到默认模型, 就把友好名称一并带上, 方便用户理解默认值具体指向哪个模型.
+ */
+export function getDefaultAssessmentModelOptionLabel(
+  defaultModelId: string | null | undefined,
+  modelInfoMap?: Record<string, Pick<ModelInfo, 'display_name'>>,
+) {
+  const defaultModelName = getAssessmentModelDisplayName(defaultModelId, modelInfoMap, {
+    emptyFallback: '',
+  })
+
+  return defaultModelName
+    ? `${DEFAULT_ASSESSMENT_MODEL_OPTION_LABEL} (${defaultModelName})`
+    : DEFAULT_ASSESSMENT_MODEL_OPTION_LABEL
 }
 
 export interface DistortionDisplayItem {

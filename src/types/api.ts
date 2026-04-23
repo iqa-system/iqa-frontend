@@ -69,13 +69,37 @@ export interface DistortionProb {
 }
 
 /**
+ * 单个可用评估模型的目录信息.
+ * 该结构来自 /assess/models, 用于前端渲染模型下拉和说明文案.
+ */
+export interface ModelInfo {
+  model_id: string
+  display_name: string
+  description: string
+  capabilities: string[]
+  is_default: boolean
+}
+
+/**
+ * 可用评估模型列表响应中的 data 结构.
+ * default_model_id 表示后端在未显式传 modelId 时会使用的默认模型.
+ */
+export interface ModelsResponse {
+  default_model_id: string
+  models: ModelInfo[]
+}
+
+/**
  * 单张或批量评估结果结构.
+ * 不同模型支持的能力不同, 因此 scene 和 distortions 允许为空.
  */
 export interface PredictResult {
-  file_name: string
+  file_name?: string | null
+  model_id: string
   quality_score: number
-  scene: number
-  distortions: DistortionProb[]
+  extra_outputs: Record<string, unknown>
+  scene: number | null
+  distortions: DistortionProb[] | null
 }
 
 /**
@@ -96,6 +120,11 @@ export interface AssessRecord {
    */
   imageURL?: string | null
   /**
+   * 实际执行评估的模型ID.
+   * 旧历史记录可能没有该字段, 因此前端需要兼容空值.
+   */
+  modelId?: string | null
+  /**
    * 专家主观评分.
    * 仅当当前记录由 EXPERT 用户填写过主观评分时才会有值.
    */
@@ -106,8 +135,8 @@ export interface AssessRecord {
   expertScoreTime?: string | null
   assessTime: string
   qualityScore: number
-  scene: string | number
-  distortions: DistortionProb[]
+  scene: string | number | null
+  distortions: DistortionProb[] | null
 }
 
 /**
@@ -141,6 +170,11 @@ export interface AdminAssessRecord {
    */
   imageURL?: string | null
   /**
+   * 实际执行评估的模型ID.
+   * 管理员历史主要用于查看和审计, 因此前端同样需要保留该字段.
+   */
+  modelId?: string | null
+  /**
    * 专家主观评分.
    * 管理员可通过全站历史只读查看该值.
    */
@@ -151,8 +185,8 @@ export interface AdminAssessRecord {
   expertScoreTime?: string | null
   assessTime: string
   qualityScore: number
-  scene: string | number
-  distortions: DistortionProb[]
+  scene: string | number | null
+  distortions: DistortionProb[] | null
 }
 
 /**

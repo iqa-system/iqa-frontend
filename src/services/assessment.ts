@@ -13,6 +13,7 @@ import type {
   BatchAssessmentProgressPayload,
   BatchAssessmentResultPayload,
   HistoryQuery,
+  ModelsResponse,
   PageAssessRecord,
   PredictResult,
   UpdateAssessmentExpertScorePayload,
@@ -146,17 +147,32 @@ async function readBatchSseStream(
 }
 
 /**
+ * 获取当前后端可用的评估模型目录.
+ * 默认模型和模型说明都以该接口返回的数据为准.
+ */
+export async function getAssessmentModels() {
+  const response = await apiRequest.get('/assess/models')
+
+  return unwrapResponse<ModelsResponse>(response)
+}
+
+/**
  * 单张评估支持 EXPERT 用户附带可选主观评分.
- * 非专家用户调用时不应传 expertScore.
+ * modelId 同样是可选字段, 留空时后端会自动使用默认模型.
  */
 export async function assessSingleImage(
   file: File,
   options?: {
+    modelId?: string
     expertScore?: number
   },
 ) {
   const formData = new FormData()
   formData.append('file', file)
+
+  if (options?.modelId?.trim()) {
+    formData.append('modelId', options.modelId.trim())
+  }
 
   if (options?.expertScore !== undefined) {
     formData.append('expertScore', String(options.expertScore))
@@ -174,6 +190,7 @@ export async function assessSingleImage(
 export async function assessBatchImages(
   files: File[],
   options: {
+    modelId?: string
     expertScores?: Array<number | undefined>
     signal?: AbortSignal
     onEvent: (event: BatchAssessmentEvent) => void
@@ -181,6 +198,10 @@ export async function assessBatchImages(
 ) {
   const formData = new FormData()
   files.forEach(file => formData.append('files', file))
+
+  if (options.modelId?.trim()) {
+    formData.append('modelId', options.modelId.trim())
+  }
 
   if (options.expertScores?.length) {
     options.expertScores.forEach(score => {
