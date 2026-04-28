@@ -1,3 +1,5 @@
+import type { ScoreRange } from '@/types/api'
+
 export function formatDateTime(value: string | null | undefined) {
   if (!value) {
     return '--'
@@ -47,27 +49,97 @@ export const QUALITY_LEVEL_LABELS: Record<1 | 2 | 3 | 4 | 5, string> = {
 }
 
 export interface QualityScoreDisplay {
+  hasNormalizedScore: boolean
   levelLabel: string
   levelValue: 1 | 2 | 3 | 4 | 5 | null
+  normalizedText: string
+  normalizedValue: number | null
+  rangeText: string
   rawText: string
 }
 
-export function getQualityScoreDisplay(score: number | null | undefined): QualityScoreDisplay {
-  if (score === null || score === undefined || Number.isNaN(score)) {
+function formatScoreRangeBoundary(value: number) {
+  return Number.isInteger(value)
+    ? String(value)
+    : value.toFixed(2).replace(/\.?0+$/, '')
+}
+
+export function isValidScoreRange(scoreRange: ScoreRange | null | undefined) {
+  if (!scoreRange) {
+    return false
+  }
+
+  const minScore = Number(scoreRange.min_score)
+  const maxScore = Number(scoreRange.max_score)
+
+  return Number.isFinite(minScore) && Number.isFinite(maxScore) && maxScore > minScore
+}
+
+export function formatScoreRange(
+  scoreRange: ScoreRange | null | undefined,
+  emptyFallback = '范围未知',
+) {
+  if (!isValidScoreRange(scoreRange)) {
+    return emptyFallback
+  }
+
+  const validatedScoreRange = scoreRange as ScoreRange
+
+  return `${formatScoreRangeBoundary(validatedScoreRange.min_score)} - ${formatScoreRangeBoundary(validatedScoreRange.max_score)}`
+}
+
+export function normalizeQualityScore(
+  score: number | null | undefined,
+  scoreRange: ScoreRange | null | undefined,
+  targetMax = 5,
+) {
+  if (score === null || score === undefined || Number.isNaN(score) || !isValidScoreRange(scoreRange)) {
+    return null
+  }
+
+  const validatedScoreRange = scoreRange as ScoreRange
+  const ratio = (score - validatedScoreRange.min_score)
+    / (validatedScoreRange.max_score - validatedScoreRange.min_score)
+  const normalizedScore = ratio * targetMax
+
+  if (Number.isNaN(normalizedScore)) {
+    return null
+  }
+
+  return Math.min(targetMax, Math.max(0, normalizedScore))
+}
+
+export function getQualityScoreDisplay(
+  score: number | null | undefined,
+  scoreRange?: ScoreRange | null,
+): QualityScoreDisplay {
+  const rawText = formatQualityScore(score)
+  const rangeText = formatScoreRange(scoreRange)
+  const normalizedValue = normalizeQualityScore(score, scoreRange)
+
+  if (normalizedValue === null) {
     return {
-      levelLabel: '未知等级',
+      hasNormalizedScore: false,
+      levelLabel: '范围未知',
       levelValue: null,
-      rawText: '--',
+      normalizedText: '--',
+      normalizedValue: null,
+      rangeText,
+      rawText,
     }
   }
 
-  const roundedScore = Math.round(score)
+  const roundedScore = Math.round(normalizedValue)
   const levelValue = Math.min(5, Math.max(1, roundedScore)) as 1 | 2 | 3 | 4 | 5
 
   return {
+    hasNormalizedScore: true,
     levelLabel: QUALITY_LEVEL_LABELS[levelValue],
     levelValue,
-    rawText: formatQualityScore(score),
+    normalizedText: formatQualityScore(normalizedValue),
+    normalizedValue,
+    rangeText,
+    rawText,
   }
 }
 

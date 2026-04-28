@@ -34,7 +34,7 @@ import {
 } from '@/services/assessment'
 import { useAuthStore } from '@/stores/authStore'
 import { useSnackbarStore } from '@/stores/snackbarStore'
-import type { BatchAssessmentEvent, ModelInfo, PredictResult } from '@/types/api'
+import type { BatchAssessmentEvent, ModelInfo, PredictResult, ScoreRange } from '@/types/api'
 import { extractErrorMessage } from '@/utils/api-request'
 import {
   DEFAULT_ASSESSMENT_MODEL_OPTION_VALUE,
@@ -44,7 +44,7 @@ import {
   getSceneLabel,
   isExpertRole,
 } from '@/utils/constants'
-import { getQualityScoreDisplay } from '@/utils/format'
+import { formatExpertScore, formatScoreRange, getQualityScoreDisplay } from '@/utils/format'
 import { parseExpertScoreInput } from '@/utils/validation'
 
 type AssessmentTab = 'single' | 'batch'
@@ -54,13 +54,20 @@ interface PreviewItem {
   url: string
 }
 
-interface ResultCardProps {
-  modelInfoMap: Record<string, ModelInfo>
-  result: PredictResult
+interface AssessmentResultItem {
+  expertScore?: number | null
+  predictResult: PredictResult
 }
 
-function ResultCard({ modelInfoMap, result }: ResultCardProps) {
-  const qualityDisplay = getQualityScoreDisplay(result.quality_score)
+interface ResultCardProps {
+  modelInfoMap: Record<string, ModelInfo>
+  resultItem: AssessmentResultItem
+}
+
+function ResultCard({ modelInfoMap, resultItem }: ResultCardProps) {
+  const result = resultItem.predictResult
+  const resolvedScoreRange: ScoreRange | null = result.score_range ?? modelInfoMap[result.model_id]?.score_range ?? null
+  const qualityDisplay = getQualityScoreDisplay(result.quality_score, resolvedScoreRange)
   const fileName = result.file_name?.trim() || '未命名文件'
   const modelDisplayName = getAssessmentModelDisplayName(result.model_id, modelInfoMap, {
     emptyFallback: '未知模型',
@@ -69,6 +76,12 @@ function ResultCard({ modelInfoMap, result }: ResultCardProps) {
     ? '该模型未提供场景分类'
     : getSceneLabel(result.scene)
   const hasDistortionCapability = Array.isArray(result.distortions)
+  const hasExpertComparison = resultItem.expertScore !== null
+    && resultItem.expertScore !== undefined
+    && qualityDisplay.normalizedValue !== null
+  const expertScoreGap = hasExpertComparison
+    ? qualityDisplay.normalizedValue! - resultItem.expertScore!
+    : null
 
   return (
     <Card
@@ -92,7 +105,7 @@ function ResultCard({ modelInfoMap, result }: ResultCardProps) {
             sx={{
               display: 'grid',
               gap: 1.5,
-              gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+              gridTemplateColumns: { md: 'repeat(3, minmax(0, 1fr))', xs: '1fr' },
             }}
           >
             <Box
@@ -103,11 +116,26 @@ function ResultCard({ modelInfoMap, result }: ResultCardProps) {
               })}
             >
               <Typography color="text.secondary" variant="caption">
-                质量分数
+                原始分数
               </Typography>
               <Typography variant="h5">{qualityDisplay.rawText}</Typography>
               <Typography color="text.secondary" sx={{ mt: 0.5 }} variant="body2">
-                质量等级: {qualityDisplay.levelLabel}
+                评分范围: {qualityDisplay.rangeText}
+              </Typography>
+            </Box>
+            <Box
+              sx={theme => ({
+                bgcolor: alpha(theme.palette.success.main, theme.palette.mode === 'dark' ? 0.16 : 0.08),
+                borderRadius: 1,
+                p: 2,
+              })}
+            >
+              <Typography color="text.secondary" variant="caption">
+                归一化分数
+              </Typography>
+              <Typography variant="h5">{qualityDisplay.normalizedText}</Typography>
+              <Typography color="text.secondary" sx={{ mt: 0.5 }} variant="body2">
+                {qualityDisplay.hasNormalizedScore ? `质量等级: ${qualityDisplay.levelLabel}` : '当前模型范围未知'}
               </Typography>
             </Box>
             <Box
@@ -123,6 +151,11 @@ function ResultCard({ modelInfoMap, result }: ResultCardProps) {
               <Typography variant="body1">{sceneDisplayText}</Typography>
             </Box>
           </Box>
+          {hasExpertComparison ? (
+            <Alert severity="info" variant="outlined">
+              专家主观分: {formatExpertScore(resultItem.expertScore)} / 5, 模型归一化分: {qualityDisplay.normalizedText} / 5, 分差: {expertScoreGap! >= 0 ? '+' : ''}{formatExpertScore(expertScoreGap)}。
+            </Alert>
+          ) : null}
           <Stack spacing={1}>
             <Typography color="text.secondary" variant="caption">
               失真类型分布
@@ -161,7 +194,7 @@ function AssessmentPage() {
 
   const [singleFile, setSingleFile] = useState<File | null>(null)
   const [singlePreviewUrl, setSinglePreviewUrl] = useState('')
-  const [singleResult, setSingleResult] = useState<PredictResult | null>(null)
+  const [singleResult, setSingleResult] = useState<AssessmentResultItem | null>(null)
   const [isSingleSubmitting, setIsSingleSubmitting] = useState(false)
   const [singleExpertScoreInput, setSingleExpertScoreInput] = useState('')
   const [singleExpertScoreError, setSingleExpertScoreError] = useState('')
@@ -170,7 +203,7 @@ function AssessmentPage() {
   const [batchPreviews, setBatchPreviews] = useState<PreviewItem[]>([])
   const [batchProgress, setBatchProgress] = useState(0)
   const [batchMessage, setBatchMessage] = useState('等待开始')
-  const [batchResults, setBatchResults] = useState<PredictResult[]>([])
+  const [batchResults, setBatchResults] = useState<AssessmentResultItem[]>([])
   const [isBatchSubmitting, setIsBatchSubmitting] = useState(false)
   const [batchExpertScoreInputs, setBatchExpertScoreInputs] = useState<string[]>([])
   const [batchExpertScoreErrors, setBatchExpertScoreErrors] = useState<string[]>([])
@@ -256,6 +289,7 @@ function AssessmentPage() {
   const selectedModelCapabilityLabels = useMemo(() => {
     return (selectedModelInfo?.capabilities ?? []).map(getModelCapabilityLabel)
   }, [selectedModelInfo])
+  const selectedModelScoreRangeText = formatScoreRange(selectedModelInfo?.score_range)
 
   const selectedModelSummaryText = selectedModelInfo
     ? getAssessmentModelDisplayName(selectedModelInfo.model_id, modelInfoMap)
@@ -349,7 +383,10 @@ function AssessmentPage() {
         modelId: currentSubmittedModelId,
         expertScore: singleExpertScoreResult.value,
       })
-      setSingleResult(result)
+      setSingleResult({
+        expertScore: singleExpertScoreResult.value ?? null,
+        predictResult: result,
+      })
       showSuccess(singleExpertScoreResult.value === undefined ? '评估完成。' : '评估完成, 已记录专家主观评分。')
     } catch (error) {
       showError(extractErrorMessage(error, '单张图片评估失败。'))
@@ -368,13 +405,26 @@ function AssessmentPage() {
       case 'result':
         setBatchMessage(event.payload.message)
         setBatchProgress(event.payload.progress ?? 0)
-        setBatchResults(current => [...current, event.payload.predictResult])
+        setBatchResults(current => [...current, {
+          expertScore: event.payload.expertScore ?? null,
+          predictResult: event.payload.predictResult,
+        }])
         break
       case 'completed':
         setBatchMessage(event.payload.message)
         setBatchProgress(event.payload.progress ?? 100)
         setBatchResults(current =>
-          event.payload.results.length ? event.payload.results : current,
+          event.payload.resultItems?.length
+            ? event.payload.resultItems.map(resultItem => ({
+                expertScore: resultItem.expertScore ?? null,
+                predictResult: resultItem.predictResult,
+              }))
+            : event.payload.results.length
+              ? event.payload.results.map(result => ({
+                  expertScore: null,
+                  predictResult: result,
+                }))
+              : current,
         )
         showSuccess(
           batchSubmittedExpertScoreCountRef.current > 0
@@ -595,6 +645,9 @@ function AssessmentPage() {
                               emptyFallback: '后端未返回默认模型信息',
                             })}
                           </Typography>
+                          <Typography color="text.secondary" variant="body2">
+                            评分范围: {selectedModelScoreRangeText}
+                          </Typography>
                           <Typography variant="body2">
                             {selectedModelInfo?.description || '未显式选择具体模型时, 系统将由后端默认模型完成评估.'}
                           </Typography>
@@ -736,7 +789,7 @@ function AssessmentPage() {
                   </Card>
 
                 <div style={{ gridColumnStart: 1, gridColumnEnd: 3 }}>
-                  {singleResult ? <ResultCard modelInfoMap={modelInfoMap} result={singleResult} /> : null}
+                  {singleResult ? <ResultCard modelInfoMap={modelInfoMap} resultItem={singleResult} /> : null}
                 </div>
               </Box>
             ) : (
@@ -945,9 +998,9 @@ function AssessmentPage() {
                     >
                       {batchResults.map((result, index) => (
                         <ResultCard
-                          key={`${result.file_name ?? 'result'}-${result.model_id}-${index}`}
+                          key={`${result.predictResult.file_name ?? 'result'}-${result.predictResult.model_id}-${index}`}
                           modelInfoMap={modelInfoMap}
-                          result={result}
+                          resultItem={result}
                         />
                       ))}
                     </Box>

@@ -69,6 +69,15 @@ export interface DistortionProb {
 }
 
 /**
+ * 模型原始评分范围.
+ * 前端会基于这个范围把不同模型的原始分数统一映射到 0-5 量纲.
+ */
+export interface ScoreRange {
+  min_score: number
+  max_score: number
+}
+
+/**
  * 单个可用评估模型的目录信息.
  * 该结构来自 /assess/models, 用于前端渲染模型下拉和说明文案.
  */
@@ -77,6 +86,7 @@ export interface ModelInfo {
   display_name: string
   description: string
   capabilities: string[]
+  score_range: ScoreRange
   is_default: boolean
 }
 
@@ -97,6 +107,7 @@ export interface PredictResult {
   file_name?: string | null
   model_id: string
   quality_score: number
+  score_range: ScoreRange
   extra_outputs: Record<string, unknown>
   scene: number | null
   distortions: DistortionProb[] | null
@@ -305,6 +316,16 @@ export interface BatchAssessmentProgressPayload {
  */
 export interface BatchAssessmentResultPayload extends BatchAssessmentProgressPayload {
   currentFileName?: string
+  expertScore?: number | null
+  predictResult: PredictResult
+}
+
+/**
+ * SSE 批量评估完成事件中的单条结果项.
+ * 和 result 事件保持同一字段语义, 便于前端统一复用结果卡片组件.
+ */
+export interface BatchAssessmentResultItem {
+  expertScore?: number | null
   predictResult: PredictResult
 }
 
@@ -313,6 +334,7 @@ export interface BatchAssessmentResultPayload extends BatchAssessmentProgressPay
  */
 export interface BatchAssessmentCompletedPayload extends BatchAssessmentProgressPayload {
   results: PredictResult[]
+  resultItems?: BatchAssessmentResultItem[]
 }
 
 /**

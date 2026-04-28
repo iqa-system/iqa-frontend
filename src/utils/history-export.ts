@@ -1,15 +1,41 @@
 import { useAuthStore } from '@/stores/authStore'
-import type { AssessRecord } from '@/types/api'
-import { getDistortionDisplayItems, getSceneLabel, isExpertRole } from '@/utils/constants'
-import { formatDateTime, formatExpertScore, formatQualityScore } from '@/utils/format'
+import type { AssessRecord, ModelInfo } from '@/types/api'
+import {
+  getAssessmentModelDisplayName,
+  getDistortionDisplayItems,
+  getSceneLabel,
+  isExpertRole,
+} from '@/utils/constants'
+import { formatDateTime, formatExpertScore, getQualityScoreDisplay } from '@/utils/format'
 
 export type HistoryExportFormat = 'csv' | 'xlsx'
 
 const UTF8_BOM = '\uFEFF'
 const CSV_MIME_TYPE = 'text/csv;charset=utf-8;'
 const XLSX_MIME_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-const DEFAULT_HISTORY_EXPORT_HEADERS = ['编号', '文件名', '评估时间', '质量分数', '场景分类', '失真类型'] as const
-const EXPERT_HISTORY_EXPORT_HEADERS = ['编号', '文件名', '评估时间', '质量分数', '专家主观评分', '场景分类', '失真类型'] as const
+const DEFAULT_HISTORY_EXPORT_HEADERS = [
+  '编号',
+  '文件名',
+  '评估时间',
+  '评估模型',
+  '原始质量分数',
+  '评分范围',
+  '归一化分数',
+  '场景分类',
+  '失真类型',
+] as const
+const EXPERT_HISTORY_EXPORT_HEADERS = [
+  '编号',
+  '文件名',
+  '评估时间',
+  '评估模型',
+  '原始质量分数',
+  '评分范围',
+  '归一化分数',
+  '专家主观评分',
+  '场景分类',
+  '失真类型',
+] as const
 
 type HistoryExportRow = Record<string, string>
 
@@ -40,16 +66,27 @@ function getHistoryExportHeaders() {
     : [...DEFAULT_HISTORY_EXPORT_HEADERS]
 }
 
-function toHistoryExportRows(records: AssessRecord[], headers: string[]): HistoryExportRow[] {
+function toHistoryExportRows(
+  records: AssessRecord[],
+  headers: string[],
+  modelInfoMap: Record<string, ModelInfo>,
+): HistoryExportRow[] {
   const isExpertHistory = headers.includes('专家主观评分')
 
   return records.map((record, index) => {
+    const qualityDisplay = getQualityScoreDisplay(
+      record.qualityScore,
+      record.modelId ? modelInfoMap[record.modelId]?.score_range : null,
+    )
     const row: HistoryExportRow = {
       '编号': String(index + 1),
       '文件名': record.filename ?? '',
       '评估时间': formatDateTime(record.assessTime),
-      '质量分数': formatQualityScore(record.qualityScore),
-      '场景分类': getSceneLabel(record.scene),
+      '评估模型': getAssessmentModelDisplayName(record.modelId, modelInfoMap),
+      '原始质量分数': qualityDisplay.rawText,
+      '评分范围': qualityDisplay.rangeText === '范围未知' ? '' : qualityDisplay.rangeText,
+      '归一化分数': qualityDisplay.hasNormalizedScore ? qualityDisplay.normalizedText : '',
+      '场景分类': record.scene === null || record.scene === undefined ? '该模型未提供场景分类' : getSceneLabel(record.scene),
       '失真类型': formatDistortionSummary(record),
     }
 
@@ -100,9 +137,13 @@ function downloadBlob(content: BlobPart, options: { filename: string; type: stri
   }, 0)
 }
 
-export async function exportHistoryRecords(records: AssessRecord[], format: HistoryExportFormat) {
+export async function exportHistoryRecords(
+  records: AssessRecord[],
+  format: HistoryExportFormat,
+  modelInfoMap: Record<string, ModelInfo>,
+) {
   const headers = getHistoryExportHeaders()
-  const rows = toHistoryExportRows(records, headers)
+  const rows = toHistoryExportRows(records, headers, modelInfoMap)
   const filename = getExportFilename(format)
 
   if (format === 'csv') {
@@ -121,7 +162,10 @@ export async function exportHistoryRecords(records: AssessRecord[], format: Hist
         { wch: 8 },
         { wch: 28 },
         { wch: 22 },
-        { wch: 12 },
+        { wch: 18 },
+        { wch: 14 },
+        { wch: 16 },
+        { wch: 14 },
         { wch: 14 },
         { wch: 14 },
         { wch: 48 },
@@ -130,7 +174,10 @@ export async function exportHistoryRecords(records: AssessRecord[], format: Hist
         { wch: 8 },
         { wch: 28 },
         { wch: 22 },
-        { wch: 12 },
+        { wch: 18 },
+        { wch: 14 },
+        { wch: 16 },
+        { wch: 14 },
         { wch: 14 },
         { wch: 48 },
       ]

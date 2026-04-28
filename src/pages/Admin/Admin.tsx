@@ -37,13 +37,14 @@ import {
   getAdminUsers,
   updateAdminUserRole,
 } from '@/services/admin'
-import { resolveHistoryImageUrl } from '@/services/assessment'
+import { getAssessmentModels, resolveHistoryImageUrl } from '@/services/assessment'
 import { useAuthStore } from '@/stores/authStore'
 import { useSnackbarStore } from '@/stores/snackbarStore'
 import type {
   AdminAssessHistoryQuery,
   AdminAssessRecord,
   AdminUsersQuery,
+  ModelInfo,
   PageAdminAssessRecord,
   PageUserInfo,
   UserInfo,
@@ -51,6 +52,7 @@ import type {
 } from '@/types/api'
 import { extractErrorMessage } from '@/utils/api-request'
 import {
+  getAssessmentModelDisplayName,
   editableUserRoles,
   getUserRoleChipColor,
   getSceneLabel,
@@ -566,6 +568,7 @@ function AdminHistoryPanel() {
   const [selectedRecordIds, setSelectedRecordIds] = useState<number[]>([])
   const [failedImageRecordIds, setFailedImageRecordIds] = useState<number[]>([])
   const [previewImage, setPreviewImage] = useState('')
+  const [modelInfoMap, setModelInfoMap] = useState<Record<string, ModelInfo>>({})
   const [exportingFormat, setExportingFormat] = useState<AdminHistoryExportFormat | null>(null)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -623,6 +626,37 @@ function AdminHistoryPanel() {
   useEffect(() => {
     setFailedImageRecordIds([])
   }, [records])
+
+  /**
+   * 管理员全站历史也需要按模型目录解释原始质量分数.
+   * 目录加载失败时页面会回退成“只展示原始分数”, 因此这里不额外打断历史列表浏览.
+   */
+  useEffect(() => {
+    let active = true
+
+    void getAssessmentModels()
+      .then(data => {
+        if (!active) {
+          return
+        }
+
+        const nextModelInfoMap = (data.models ?? []).reduce<Record<string, ModelInfo>>((currentMap, model) => {
+          currentMap[model.model_id] = model
+          return currentMap
+        }, {})
+
+        setModelInfoMap(nextModelInfoMap)
+      })
+      .catch(() => {
+        if (active) {
+          setModelInfoMap({})
+        }
+      })
+
+    return () => {
+      active = false
+    }
+  }, [])
 
   /**
    * 管理员全站历史与普通历史页共享同一套图片直连策略.
@@ -716,7 +750,7 @@ function AdminHistoryPanel() {
     setExportingFormat(format)
 
     try {
-      await exportAdminHistoryRecords(selectedRecords, format)
+      await exportAdminHistoryRecords(selectedRecords, format, modelInfoMap)
       showSuccess(`已导出 ${selectedRecords.length} 条全站历史记录（${format.toUpperCase()}）.`)
     } catch (error) {
       showError(extractErrorMessage(error, '全站历史导出失败.'))
@@ -881,8 +915,8 @@ function AdminHistoryPanel() {
                 </Stack>
               </Box>
 
-              <TableContainer component={Paper} elevation={0}>
-                <Table sx={{ minWidth: 1480 }}>
+                <TableContainer component={Paper} elevation={0}>
+                <Table sx={{ minWidth: 1640 }}>
                   <TableHead>
                     <TableRow>
                       <TableCell padding="checkbox">
@@ -900,6 +934,7 @@ function AdminHistoryPanel() {
                       <TableCell>缩略图</TableCell>
                       <TableCell>文件名</TableCell>
                       <TableCell>评估时间</TableCell>
+                      <TableCell>评估模型</TableCell>
                       <TableCell>质量分数</TableCell>
                       <TableCell>专家评分</TableCell>
                       <TableCell>评分时间</TableCell>
@@ -913,7 +948,15 @@ function AdminHistoryPanel() {
                       const isSelected = selectedRecordIdSet.has(record.id)
                       const isImageFailed = failedImageRecordIdSet.has(record.id)
                       const hasImage = Boolean(imageUrl) && !isImageFailed
-                      const qualityDisplay = getQualityScoreDisplay(record.qualityScore)
+                      const qualityDisplay = getQualityScoreDisplay(
+                        record.qualityScore,
+                        record.modelId ? modelInfoMap[record.modelId]?.score_range : null,
+                      )
+                      const sceneDisplayText = record.scene === null || record.scene === undefined
+                        ? '该模型未提供场景分类'
+                        : getSceneLabel(record.scene)
+                      const modelDisplayName = getAssessmentModelDisplayName(record.modelId, modelInfoMap)
+                      const hasDistortionCapability = Array.isArray(record.distortions)
 
                       return (
                         <TableRow hover key={record.id} selected={isSelected}>
@@ -971,19 +1014,33 @@ function AdminHistoryPanel() {
                           </TableCell>
                           <TableCell>{record.filename}</TableCell>
                           <TableCell>{formatDateTime(record.assessTime)}</TableCell>
+                          <TableCell>{modelDisplayName}</TableCell>
                           <TableCell>
                             <Stack spacing={0.25}>
-                              <Typography variant="body2">{qualityDisplay.rawText}</Typography>
+                              <Typography variant="body2">
+                                原始分数: {qualityDisplay.rawText}
+                              </Typography>
                               <Typography color="text.secondary" variant="caption">
-                                {qualityDisplay.levelLabel}
+                                评分范围: {qualityDisplay.rangeText}
+                              </Typography>
+                              <Typography color="text.secondary" variant="caption">
+                                {qualityDisplay.hasNormalizedScore
+                                  ? `归一化分数: ${qualityDisplay.normalizedText} / 5, 等级: ${qualityDisplay.levelLabel}`
+                                  : '范围未知, 暂不支持跨模型比较'}
                               </Typography>
                             </Stack>
                           </TableCell>
                           <TableCell>{formatExpertScore(record.expertScore)}</TableCell>
                           <TableCell>{formatDateTime(record.expertScoreTime)}</TableCell>
-                          <TableCell>{getSceneLabel(record.scene)}</TableCell>
+                          <TableCell>{sceneDisplayText}</TableCell>
                           <TableCell sx={{ maxWidth: 280, minWidth: 220 }}>
-                            <DistortionList distortions={record.distortions} variant="chips" />
+                            {hasDistortionCapability ? (
+                              <DistortionList distortions={record.distortions} variant="chips" />
+                            ) : (
+                              <Typography color="text.secondary" variant="body2">
+                                该模型未提供失真类型识别
+                              </Typography>
+                            )}
                           </TableCell>
                         </TableRow>
                       )

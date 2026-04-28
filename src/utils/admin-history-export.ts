@@ -1,6 +1,10 @@
-import type { AdminAssessRecord } from '@/types/api'
-import { getDistortionDisplayItems, getSceneLabel } from '@/utils/constants'
-import { formatDateTime, formatQualityScore } from '@/utils/format'
+import type { AdminAssessRecord, ModelInfo } from '@/types/api'
+import {
+  getAssessmentModelDisplayName,
+  getDistortionDisplayItems,
+  getSceneLabel,
+} from '@/utils/constants'
+import { formatDateTime, formatExpertScore, getQualityScoreDisplay } from '@/utils/format'
 
 export type AdminHistoryExportFormat = 'csv' | 'xlsx'
 
@@ -13,7 +17,11 @@ const ADMIN_HISTORY_EXPORT_HEADERS = [
   '用户名',
   '文件名',
   '评估时间',
-  '质量分数',
+  '评估模型',
+  '原始质量分数',
+  '评分范围',
+  '归一化分数',
+  '专家主观评分',
   '场景分类',
   '失真类型',
 ] as const
@@ -49,17 +57,31 @@ function formatDistortionSummary(record: AdminAssessRecord) {
  * 将管理员历史记录转换为导出行.
  * 编号始终按照本次实际导出的顺序从 1 开始.
  */
-function toAdminHistoryExportRows(records: AdminAssessRecord[]): AdminHistoryExportRow[] {
-  return records.map((record, index) => ({
-    '编号': String(index + 1),
-    '用户ID': String(record.userId ?? ''),
-    '用户名': record.username ?? '',
-    '文件名': record.filename ?? '',
-    '评估时间': formatDateTime(record.assessTime),
-    '质量分数': formatQualityScore(record.qualityScore),
-    '场景分类': getSceneLabel(record.scene),
-    '失真类型': formatDistortionSummary(record),
-  }))
+function toAdminHistoryExportRows(
+  records: AdminAssessRecord[],
+  modelInfoMap: Record<string, ModelInfo>,
+): AdminHistoryExportRow[] {
+  return records.map((record, index) => {
+    const qualityDisplay = getQualityScoreDisplay(
+      record.qualityScore,
+      record.modelId ? modelInfoMap[record.modelId]?.score_range : null,
+    )
+
+    return {
+      '编号': String(index + 1),
+      '用户ID': String(record.userId ?? ''),
+      '用户名': record.username ?? '',
+      '文件名': record.filename ?? '',
+      '评估时间': formatDateTime(record.assessTime),
+      '评估模型': getAssessmentModelDisplayName(record.modelId, modelInfoMap),
+      '原始质量分数': qualityDisplay.rawText,
+      '评分范围': qualityDisplay.rangeText === '范围未知' ? '' : qualityDisplay.rangeText,
+      '归一化分数': qualityDisplay.hasNormalizedScore ? qualityDisplay.normalizedText : '',
+      '专家主观评分': formatExpertScore(record.expertScore, ''),
+      '场景分类': record.scene === null || record.scene === undefined ? '该模型未提供场景分类' : getSceneLabel(record.scene),
+      '失真类型': formatDistortionSummary(record),
+    }
+  })
 }
 
 function getExportMatrix(rows: AdminHistoryExportRow[]) {
@@ -108,8 +130,9 @@ function downloadBlob(content: BlobPart, options: { filename: string; type: stri
 export async function exportAdminHistoryRecords(
   records: AdminAssessRecord[],
   format: AdminHistoryExportFormat,
+  modelInfoMap: Record<string, ModelInfo>,
 ) {
-  const rows = toAdminHistoryExportRows(records)
+  const rows = toAdminHistoryExportRows(records, modelInfoMap)
   const filename = getExportFilename(format)
 
   if (format === 'csv') {
@@ -129,7 +152,11 @@ export async function exportAdminHistoryRecords(
     { wch: 20 },
     { wch: 28 },
     { wch: 22 },
-    { wch: 12 },
+    { wch: 18 },
+    { wch: 14 },
+    { wch: 16 },
+    { wch: 14 },
+    { wch: 14 },
     { wch: 14 },
     { wch: 48 },
   ]

@@ -256,7 +256,7 @@ function HistoryPage() {
     setExportingFormat(format)
 
     try {
-      await exportHistoryRecords(selectedRecords, format)
+      await exportHistoryRecords(selectedRecords, format, modelInfoMap)
       showSuccess(`已导出 ${selectedRecords.length} 条历史记录（${format.toUpperCase()}）。`)
     } catch (error) {
       showError(extractErrorMessage(error, '历史记录导出失败。'))
@@ -401,7 +401,10 @@ function HistoryPage() {
                         const isSelected = selectedRecordIdSet.has(record.id)
                         const isImageFailed = failedImageRecordIdSet.has(record.id)
                         const hasImage = Boolean(imageUrl) && !isImageFailed
-                        const qualityDisplay = getQualityScoreDisplay(record.qualityScore)
+                        const qualityDisplay = getQualityScoreDisplay(
+                          record.qualityScore,
+                          record.modelId ? modelInfoMap[record.modelId]?.score_range : null,
+                        )
                         const sceneDisplayText = record.scene === null || record.scene === undefined
                           ? '该模型未提供场景分类'
                           : getSceneLabel(record.scene)
@@ -464,9 +467,16 @@ function HistoryPage() {
                             <TableCell>{formatDateTime(record.assessTime)}</TableCell>
                             <TableCell>
                               <Stack spacing={0.25}>
-                                <Typography variant="body2">{qualityDisplay.rawText}</Typography>
+                                <Typography variant="body2">
+                                  原始分数: {qualityDisplay.rawText}
+                                </Typography>
                                 <Typography color="text.secondary" variant="caption">
-                                  {qualityDisplay.levelLabel}
+                                  评分范围: {qualityDisplay.rangeText}
+                                </Typography>
+                                <Typography color="text.secondary" variant="caption">
+                                  {qualityDisplay.hasNormalizedScore
+                                    ? `归一化分数: ${qualityDisplay.normalizedText} / 5, 等级: ${qualityDisplay.levelLabel}`
+                                    : '范围未知, 暂不支持跨模型比较'}
                                 </Typography>
                               </Stack>
                             </TableCell>
