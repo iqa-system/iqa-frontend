@@ -570,7 +570,6 @@ function AssessmentPage() {
                       color="primary"
                       label={`当前模型: ${selectedModelSummaryText}`}
                       sx={{ alignSelf: 'flex-start' }}
-                      variant="outlined"
                     />
                   </Stack>
 
@@ -638,13 +637,6 @@ function AssessmentPage() {
                       <CardContent sx={{ p: 2.5 }}>
                         <Stack spacing={1.5}>
                           <Typography variant="subtitle1">模型说明</Typography>
-                          <Typography color="text.secondary" variant="body2">
-                            默认模型:
-                            {' '}
-                            {getAssessmentModelDisplayName(resolvedDefaultModelId, modelInfoMap, {
-                              emptyFallback: '后端未返回默认模型信息',
-                            })}
-                          </Typography>
                           <Typography color="text.secondary" variant="body2">
                             评分范围: {selectedModelScoreRangeText}
                           </Typography>
