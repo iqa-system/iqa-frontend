@@ -825,13 +825,14 @@ function AssessmentPage() {
                             <Typography color="text.secondary" variant="body2">
                               可按文件顺序填写主观评分. 留空表示本次不填写该图片评分。
                             </Typography>
+                            <hr/>
                             <Box
                               sx={{
                                 display: 'grid',
-                                gap: 1.25,
                                 maxHeight: 260,
-                                overflowY: 'visible',
+                                overflowY: 'scroll',
                                 pr: 0.5,
+                                pt: 1
                               }}
                             >
                               {batchFiles.map((file, index) => (

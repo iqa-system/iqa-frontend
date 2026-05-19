@@ -1,6 +1,8 @@
 import apiRequest, { unwrapResponse } from '@/utils/api-request'
 import type {
   AdminAssessHistoryQuery,
+  AdminStatisticsQuery,
+  AdminStatisticsResponse,
   AdminUpdateUserRolePayload,
   AdminUsersQuery,
   PageAdminAssessRecord,
@@ -77,4 +79,16 @@ export async function deleteAdminAssessmentHistory(ids: number[]) {
   })
 
   return unwrapResponse<number>(response)
+}
+
+/**
+ * 获取管理员统计看板数据.
+ * 时间范围为空时后端会统计全部历史记录.
+ */
+export async function getAdminStatistics(query: AdminStatisticsQuery) {
+  const response = await apiRequest.get('/admin/statistics', {
+    params: query,
+  })
+
+  return unwrapResponse<AdminStatisticsResponse>(response)
 }

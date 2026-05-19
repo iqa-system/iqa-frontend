@@ -16,6 +16,7 @@
     "@mui/icons-material": "^7.3.9",
     "@mui/material": "^7.3.9",
     "axios": "^1.13.6",
+    "echarts": "^6.0.0",
     "keepalive-for-react": "^5.0.7",
     "keepalive-for-react-router": "^5.0.7",
     "react": "^19.2.0",

@@ -20,6 +20,7 @@ import AdminPanelSettingsRoundedIcon from '@mui/icons-material/AdminPanelSetting
 import HistoryOutlinedIcon from '@mui/icons-material/HistoryOutlined'
 import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded'
 import PersonOutlineRoundedIcon from '@mui/icons-material/PersonOutlineRounded'
+import QueryStatsRoundedIcon from '@mui/icons-material/QueryStatsRounded'
 import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded'
 import TuneRoundedIcon from '@mui/icons-material/TuneRounded'
 import { alpha } from '@mui/material/styles'
@@ -48,8 +49,14 @@ const primaryNavigationItems = [
 
 const adminNavigationItem = {
   icon: <AdminPanelSettingsRoundedIcon />,
-  label: '管理员',
+  label: '数据管理',
   to: '/admin',
+}
+
+const statisticsNavigationItem = {
+  icon: <QueryStatsRoundedIcon />,
+  label: '统计信息',
+  to: '/statistics',
 }
 
 const secondaryNavigationItems = [
@@ -82,7 +89,7 @@ function AppLayout() {
 
   // 管理员入口只在当前用户拥有管理员角色时展示, 普通用户不会在导航中看到该菜单.
   const navigationItems = isAdminRole(user?.role)
-    ? [...primaryNavigationItems, adminNavigationItem, ...secondaryNavigationItems]
+    ? [...primaryNavigationItems, statisticsNavigationItem, adminNavigationItem, ...secondaryNavigationItems]
     : [...primaryNavigationItems, ...secondaryNavigationItems]
 
   useEffect(() => {

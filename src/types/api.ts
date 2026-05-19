@@ -211,6 +211,78 @@ export interface PageAdminAssessRecord {
   pages: number
 }
 
+export interface AdminStatisticsSummary {
+  totalAssessments: number
+  activeUserCount: number
+  expertSampleCount: number
+  modelCount: number
+}
+
+export interface AdminDailyAssessment {
+  date: string
+  count: number
+}
+
+export interface AdminModelUsage {
+  modelId: string
+  modelName: string
+  count: number
+  ratio: number
+}
+
+export interface AdminQualityBucket {
+  bucket: string
+  minScore: number
+  maxScore: number
+  count: number
+  ratio: number
+}
+
+export interface AdminActiveUser {
+  userId: number
+  username: string
+  count: number
+}
+
+export interface AdminDeviationBucket {
+  bucket: string
+  minDiff: number
+  maxDiff: number
+  count: number
+  ratio: number
+}
+
+export interface AdminModelExpertConsistency {
+  modelId: string
+  modelName: string
+  sampleCount: number
+  meanAbsoluteError: number | null
+  meanSignedError: number | null
+  rootMeanSquareError: number | null
+  pearsonCorrelation: number | null
+}
+
+export interface AdminExpertComparison {
+  sampleCount: number
+  skippedCount: number | null
+  meanAbsoluteError: number | null
+  meanSignedError: number | null
+  rootMeanSquareError: number | null
+  pearsonCorrelation: number | null
+  deviationBuckets: AdminDeviationBucket[]
+  modelConsistency: AdminModelExpertConsistency[]
+}
+
+export interface AdminStatisticsResponse {
+  summary: AdminStatisticsSummary
+  dailyAssessments: AdminDailyAssessment[]
+  modelUsage: AdminModelUsage[]
+  qualityBuckets: AdminQualityBucket[]
+  activeUsers: AdminActiveUser[]
+  expertComparison: AdminExpertComparison
+  warnings: string[]
+}
+
 /**
  * 普通用户历史记录查询参数.
  */
@@ -240,6 +312,11 @@ export interface AdminAssessHistoryQuery {
   pageSize: number
   userId?: number
   filename?: string
+  startTime?: string
+  endTime?: string
+}
+
+export interface AdminStatisticsQuery {
   startTime?: string
   endTime?: string
 }

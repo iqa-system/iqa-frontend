@@ -12,6 +12,7 @@ import HistoryPage from '@/pages/History/History'
 import NotFoundPage from '@/pages/NotFound/NotFound'
 import ProfilePage from '@/pages/Profile/Profile'
 import SettingsPage from '@/pages/Settings/Settings'
+import StatisticsPage from '@/pages/Statistics/Statistics'
 
 export const router = createBrowserRouter([
   {
@@ -60,6 +61,16 @@ export const router = createBrowserRouter([
               {
                 index: true,
                 element: <AdminPage />,
+              },
+            ],
+          },
+          {
+            path: 'statistics',
+            element: <AdminRoute />,
+            children: [
+              {
+                index: true,
+                element: <StatisticsPage />,
               },
             ],
           },
