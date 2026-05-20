@@ -13,8 +13,8 @@ declare module 'axios' {
 const SUCCESS_CODES = new Set([0, 200])
 const AUTH_FREE_PATHS = new Set(['/login', '/register', '/forgot-password'])
 
-// 阿里云服务器: 8.146.225.62:8080; 学校服务器: 211.87.232.11
-export const baseURL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() || 'http://localhost:8080'
+// 阿里云服务器: 8.146.225.62:8080; 学校服务器: 211.87.232.117
+export const baseURL = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() || 'http://211.87.232.117:8080'
 
 export function resolveApiUrl(path: string) {
   const normalizedBaseURL = baseURL.endsWith('/') ? baseURL : `${baseURL}/`

@@ -18,7 +18,7 @@ import {
   Tab,
   Tabs,
   TextField,
-  Typography,
+  Typography, useTheme,
 } from '@mui/material'
 import AutoAwesomeRoundedIcon from '@mui/icons-material/AutoAwesomeRounded'
 import CollectionsRoundedIcon from '@mui/icons-material/CollectionsRounded'
@@ -209,6 +209,9 @@ function AssessmentPage() {
   const [batchExpertScoreErrors, setBatchExpertScoreErrors] = useState<string[]>([])
   const batchAbortRef = useRef<AbortController | null>(null)
   const batchSubmittedExpertScoreCountRef = useRef(0)
+
+  // js层面的主题对象. 用于原生的不能用sx定义样式的元素比如<img>
+  const theme = useTheme()
 
   useEffect(() => {
     return () => {
@@ -948,7 +951,11 @@ function AssessmentPage() {
                                   alt={item.name}
                                   loading="lazy"
                                   src={item.url}
-                                  style={{ aspectRatio: '1 / 1', objectFit: 'cover' }}
+                                  style={{
+                                    aspectRatio: '1 / 1',
+                                    objectFit: 'contain',
+                                    background: `repeating-linear-gradient(135deg, ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.12 : 0.03)}, ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.12 : 0.03)} 12px, ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.2 : 0.06)} 12px, ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.2 : 0.06)} 24px)`
+                                  }}
                                 />
                                 <Box sx={{ px: 1.25, py: 1 }}>
                                   <Typography noWrap title={item.name} variant="caption">
