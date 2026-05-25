@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type SyntheticEvent } from 'react'
 import {
   Alert,
   Box,
-  Button,
+  Button, ButtonGroup,
   Card,
   CardContent,
   Checkbox,
@@ -108,6 +108,21 @@ function toIsoDateTime(value: string) {
   }
 
   return date.toISOString()
+}
+
+function buildAdminHistoryQuery(
+  filters: AdminHistoryFilterForm,
+  page: number,
+  pageSize: number,
+): AdminAssessHistoryQuery {
+  return {
+    page,
+    pageSize,
+    endTime: toIsoDateTime(filters.endTime),
+    filename: filters.filename.trim() || undefined,
+    startTime: toIsoDateTime(filters.startTime),
+    userId: filters.userId.trim() ? Number(filters.userId.trim()) : undefined,
+  }
 }
 
 function AdminUsersPanel({ currentUserId }: { currentUserId: number | undefined }) {
@@ -557,6 +572,7 @@ function AdminUsersPanel({ currentUserId }: { currentUserId: number | undefined 
 
 function AdminHistoryPanel() {
   const showError = useSnackbarStore(state => state.showError)
+  const showInfo = useSnackbarStore(state => state.showInfo)
   const showSuccess = useSnackbarStore(state => state.showSuccess)
   const [filters, setFilters] = useState<AdminHistoryFilterForm>(DEFAULT_HISTORY_FILTERS)
   const [appliedFilters, setAppliedFilters] = useState<AdminHistoryFilterForm>(DEFAULT_HISTORY_FILTERS)
@@ -570,6 +586,7 @@ function AdminHistoryPanel() {
   const [previewImage, setPreviewImage] = useState('')
   const [modelInfoMap, setModelInfoMap] = useState<Record<string, ModelInfo>>({})
   const [exportingFormat, setExportingFormat] = useState<AdminHistoryExportFormat | null>(null)
+  const [exportingAllFormat, setExportingAllFormat] = useState<AdminHistoryExportFormat | null>(null)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [historyReloadKey, setHistoryReloadKey] = useState(0)
@@ -580,14 +597,7 @@ function AdminHistoryPanel() {
    */
   useEffect(() => {
     let active = true
-    const query: AdminAssessHistoryQuery = {
-      page,
-      pageSize,
-      endTime: toIsoDateTime(appliedFilters.endTime),
-      filename: appliedFilters.filename.trim() || undefined,
-      startTime: toIsoDateTime(appliedFilters.startTime),
-      userId: appliedFilters.userId.trim() ? Number(appliedFilters.userId.trim()) : undefined,
-    }
+    const query = buildAdminHistoryQuery(appliedFilters, page, pageSize)
 
     setIsLoading(true)
     setSelectedRecordIds([])
@@ -680,7 +690,7 @@ function AdminHistoryPanel() {
   const selectedCount = selectedRecords.length
   const allRecordsSelected = records.length > 0 && selectedCount === records.length
   const hasPartialSelection = selectedCount > 0 && selectedCount < records.length
-  const isBatchActionBusy = exportingFormat !== null || isDeleting
+  const isBatchActionBusy = exportingFormat !== null || exportingAllFormat !== null || isDeleting
 
   const handleApplyFilters = () => {
     const trimmedUserId = filters.userId.trim()
@@ -756,6 +766,31 @@ function AdminHistoryPanel() {
       showError(extractErrorMessage(error, '全站历史导出失败.'))
     } finally {
       setExportingFormat(null)
+    }
+  }
+
+  const handleExportAll = async (format: AdminHistoryExportFormat) => {
+    if (!total) {
+      showInfo('当前查询结果为空, 无需导出.')
+      return
+    }
+
+    setExportingAllFormat(format)
+
+    try {
+      const data = await getAdminAssessmentHistory(buildAdminHistoryQuery(appliedFilters, 1, total))
+
+      if (!data.records.length) {
+        showInfo('当前查询结果为空, 无需导出.')
+        return
+      }
+
+      await exportAdminHistoryRecords(data.records, format, modelInfoMap)
+      showSuccess(`已导出 ${data.records.length} 条当前查询结果（${format.toUpperCase()}）.`)
+    } catch (error) {
+      showError(extractErrorMessage(error, '当前查询结果导出失败.'))
+    } finally {
+      setExportingAllFormat(null)
     }
   }
 
@@ -885,24 +920,41 @@ function AdminHistoryPanel() {
                   <Stack spacing={0.5}>
                     <Typography variant="h6">批量操作</Typography>
                     <Typography color="text.secondary" variant="body2">
-                      已选 {selectedCount} 条 / 当前页 {records.length} 条. 仅处理当前页勾选记录.
+                      已选 {selectedCount} 条 / 当前页 {records.length} 条 / 当前查询共 {total} 条. 所选操作仅处理当前页勾选记录.
                     </Typography>
                   </Stack>
                   <Stack direction="row" flexWrap="wrap" gap={1}>
-                    <Button
-                      disabled={!selectedCount || isBatchActionBusy}
-                      onClick={() => void handleExport('csv')}
-                      variant="outlined"
-                    >
-                      {exportingFormat === 'csv' ? '导出中...' : '导出 CSV'}
-                    </Button>
-                    <Button
-                      disabled={!selectedCount || isBatchActionBusy}
-                      onClick={() => void handleExport('xlsx')}
-                      variant="contained"
-                    >
-                      {exportingFormat === 'xlsx' ? '导出中...' : '导出 XLSX'}
-                    </Button>
+                    <ButtonGroup>
+                      <Button
+                        disabled={!selectedCount || isBatchActionBusy}
+                        onClick={() => void handleExport('csv')}
+                        variant="outlined"
+                      >
+                        {exportingFormat === 'csv' ? '导出所选中...' : '导出所选 CSV'}
+                      </Button>
+                      <Button
+                        disabled={!selectedCount || isBatchActionBusy}
+                        onClick={() => void handleExport('xlsx')}
+                        variant="contained"
+                      >
+                        {exportingFormat === 'xlsx' ? '导出所选中...' : '导出所选 XLSX'}
+                      </Button>
+                      <Button
+                        disabled={!total || isBatchActionBusy}
+                        onClick={() => void handleExportAll('csv')}
+                        variant="outlined"
+                      >
+                        {exportingAllFormat === 'csv' ? '导出全部中...' : '导出全部 CSV'}
+                      </Button>
+                      <Button
+                        disabled={!total || isBatchActionBusy}
+                        onClick={() => void handleExportAll('xlsx')}
+                        variant="contained"
+                      >
+                        {exportingAllFormat === 'xlsx' ? '导出全部中...' : '导出全部 XLSX'}
+                      </Button>
+                    </ButtonGroup>
+
                     <Button
                       color="error"
                       disabled={!selectedCount || isBatchActionBusy}
